@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "no.ssb.dapla.spark.protobuf";
+
+service SparkPluginService {
+    rpc loadDataSet (DataSetRequest) returns (LoadDataSetResponse);
+    rpc saveDataSet (DataSetRequest) returns (SaveDataSetResponse);
+    rpc sayHello (HelloRequest) returns (HelloResponse);
+}
+
+message DataSetRequest {
+    string id = 1;
+    string name = 2;
+    string nameSpace = 3;
+    string Access = 4;
+}
+
+message LoadDataSetResponse {
+    DataSet dataset = 1;
+    string status = 2; // Not found / not access
+}
+
+message Access {
+    string token = 1;
+}
+
+message DataSet {
+    string id = 1;
+    string uri = 2;
+    string name = 3;
+    string nameSpace = 4;
+}
+
+message SaveDataSetResponse {
+    string result = 1;
+}
+
+message HelloRequest {
+    string greeting = 1;
+}
+
+message HelloResponse {
+    string reply = 1;
+}
+

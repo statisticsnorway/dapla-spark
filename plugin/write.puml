@@ -1,0 +1,33 @@
+@startuml
+
+title Append to dataset
+
+actor User
+participant "Zeppelin"
+participant "LDS"
+participant "LDS GSIM Spark"
+collections "Spark cluster"
+database "Google Cloud Storage"
+
+User -> Zeppelin : Execute
+Zeppelin -> "Spark cluster" : Start job
+activate "Spark cluster"
+"Spark cluster" -> "Spark cluster" : Compute
+"Spark cluster" -> "LDS GSIM Spark" : Delegate write
+activate "LDS GSIM Spark"
+"LDS GSIM Spark" -> LDS : Ask for list
+"LDS GSIM Spark" --> "Spark cluster" : Write files
+activate LDS
+return Filenames
+"LDS GSIM Spark" -> "LDS GSIM Spark" : Compute new list
+"LDS GSIM Spark" -> LDS : Write new list
+activate LDS
+return
+return Filenames
+
+"Spark cluster" -> "Google Cloud Storage" : Write file
+activate "Google Cloud Storage"
+return Done
+return Done
+Zeppelin --> User
+@enduml

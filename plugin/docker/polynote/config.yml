@@ -1,0 +1,51 @@
+# The host and port can be set by uncommenting and editing the following lines:
+listen:
+  host: 0.0.0.0
+  port: 8192
+
+#storage:
+#  # The location Polynote looks for your notebooks in
+#  dir: notebooks
+#  # The location Polynote puts various caches, such as virtual environments created for your notebooks.
+#  cache: tmp
+
+# Default repositories can be specified. Uncommenting the following lines would add four default repositories which a>
+#repositories:
+#  - ivy:
+#      base: https://my-artifacts.org/artifacts/
+#  - ivy:
+#      base: https://my-custom-ivy-repo.org/artifacts/
+#      artifact_pattern: [orgPath]/[module](_[scalaVersion])(_[sbtVersion])/[revision]/[artifact]-[revision](-[classi>
+#      metadata_pattern: [orgPath]/[module](_[scalaVersion])(_[sbtVersion])/[revision]/[module](_[scalaVersion])(_[sb>
+#      changing: true
+#  - maven:
+#      base: http://central.maven.org/maven2/
+#  - maven:
+#      base: http://oss.sonatype.org/content/repositories/snapshots
+#      changing: true
+
+# Default dependencies can be specified. Uncommenting the following lines would add some default dependencies which a>
+dependencies:
+  scala:
+    - file:/polynote/lds-gsim-spark.jar
+    - file:/polynote/gcs-connector-hadoop.jar
+#    - com.mycompany:my-library:jar:all:1.0.0
+#  python:
+#    - requests
+#    - urllib3==1.25.3
+
+#exclusions:
+#  - com.google.guava:guava  # spark, update your guava already!!!
+
+# Spark config params can be set by uncommenting and editing the following lines:
+spark:
+  spark.master: "spark://spark-master:7077"
+  spark.ssb.gsim.location: "$LDS_GSIM_SPARK_LOCATION"
+  spark.ssb.gsim.ldsUrl: "$LDS_GSIM_SPARK_LDS_URL"
+  spark.ssb.gsim.oauth.tokenUrl: "$LDS_GSIM_SPARK_OAUTH_TOKEN_URL"
+  spark.ssb.gsim.oauth.grantType: "$LDS_GSIM_SPARK_OAUTH_GRANT_TYPE"
+  spark.ssb.gsim.oauth.clientId: "$LDS_GSIM_SPARK_OAUTH_CLIENT_ID"
+  spark.ssb.gsim.oauth.clientSecret: "$LDS_GSIM_SPARK_OAUTH_CLIENT_SECRET"
+  spark.ssb.gsim.oauth.userName: "$LDS_GSIM_SPARK_OAUTH_USERNAME"
+  spark.ssb.gsim.oauth.password: "$LDS_GSIM_SPARK_OAUTH_PASSWORD"
+  spark.hadoop.fs.gs.impl: "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem"
