@@ -88,7 +88,6 @@
     <modules>
         <module>protobuf</module>
         <module>service</module>
-        <module>plugin</module>
     </modules>
 
 </project>
