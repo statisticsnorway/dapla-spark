@@ -29,17 +29,17 @@ steps:
               layout: default
 
   - name: build
-    image: maven:3.6.3-jdk-11-slim
+    image: maven:3-jdk-11-slim
     commands:
-      - mvn verify -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository --no-transfer-progress --batch-mode --global-settings settings.xml
+      - mvn clean verify -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository --no-transfer-progress --batch-mode --global-settings settings.xml
     depends_on:
       - authenticate
       - restore-cache
 
   - name: publish-maven
-    image: maven:3.6.3-jdk-11-slim
+    image: maven:3-jdk-11-slim
     commands:
-      - mvn deploy -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository -DskipTests=true -Dmaven.compiler.useIncrementalCompilation=false --batch-mode --global-settings settings.xml
+      - mvn clean deploy -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository -DskipTests=true --batch-mode --global-settings settings.xml
     environment:
       MAVEN_OPTS: -Djdk.tls.client.protocols="TLSv1.2"
     when:
@@ -89,19 +89,19 @@ steps:
     depends_on:
       - sonarqube
 
-  - name: dapla-spark-service
-    image: plugins/gcr
-    settings:
-      dockerfile: service/Dockerfile
-      repo: eu.gcr.io/prod-bip/dapla-spark-service
-      registry: eu.gcr.io
-      tags:
-        - latest
-        - ${DRONE_BRANCH}-${DRONE_COMMIT_SHA:0:8}
-      json_key:
-        from_secret: gcr_credentials
-    depends_on:
-      - build
+ # - name: dapla-spark-service
+ #   image: plugins/gcr
+ #   settings:
+ #     dockerfile: service/Dockerfile
+ #     repo: eu.gcr.io/prod-bip/dapla-spark-service
+ #     registry: eu.gcr.io
+ #     tags:
+ #       - latest
+ #       - ${DRONE_BRANCH}-${DRONE_COMMIT_SHA:0:8}
+ #     json_key:
+ #       from_secret: gcr_credentials
+ #   depends_on:
+ #     - build
 
   - name: slack
     image: plugins/slack
