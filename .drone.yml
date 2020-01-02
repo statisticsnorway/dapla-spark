@@ -89,19 +89,19 @@ steps:
     depends_on:
       - sonarqube
 
- # - name: dapla-spark-service
- #   image: plugins/gcr
- #   settings:
- #     dockerfile: service/Dockerfile
- #     repo: eu.gcr.io/prod-bip/dapla-spark-service
- #     registry: eu.gcr.io
- #     tags:
- #       - latest
- #       - ${DRONE_BRANCH}-${DRONE_COMMIT_SHA:0:8}
- #     json_key:
- #       from_secret: gcr_credentials
- #   depends_on:
- #     - build
+  - name: dapla-spark-service
+    image: plugins/gcr
+    settings:
+      dockerfile: service/Dockerfile
+      repo: eu.gcr.io/prod-bip/dapla-spark-service
+      registry: eu.gcr.io
+      tags:
+        - latest
+        - ${DRONE_BRANCH}-${DRONE_COMMIT_SHA:0:8}
+      json_key:
+        from_secret: gcr_credentials
+    depends_on:
+      - build
 
   - name: slack
     image: plugins/slack
