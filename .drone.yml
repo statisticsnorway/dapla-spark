@@ -37,7 +37,7 @@ steps:
       - restore-cache
 
   - name: publish-maven
-    image: maven:3.6.1-jdk-11-slim
+    image: maven:3-jdk-11-slim
     commands:
       - mvn deploy -X -e -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository -DskipTests=true --batch-mode --global-settings settings.xml
     when:
