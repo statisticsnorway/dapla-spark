@@ -7,7 +7,7 @@
         <groupId>no.ssb.dapla.spark</groupId>
         <artifactId>dapla-spark-parent</artifactId>
         <version>0.0.1-SNAPSHOT</version>
-        <relativePath/>
+        <relativePath>..</relativePath>
     </parent>
 
     <artifactId>dapla-spark-service</artifactId>
