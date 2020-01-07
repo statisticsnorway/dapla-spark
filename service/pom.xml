@@ -7,6 +7,7 @@
         <groupId>no.ssb.dapla.spark</groupId>
         <artifactId>dapla-spark-parent</artifactId>
         <version>0.0.1-SNAPSHOT</version>
+        <relativePath/>
     </parent>
 
     <artifactId>dapla-spark-service</artifactId>
@@ -15,6 +16,7 @@
 
     <properties>
         <mainClass>no.ssb.dapla.spark.service.Application</mainClass>
+        <slf4j.version>1.7.30</slf4j.version>
     </properties>
 
     <dependencies>
@@ -28,11 +30,49 @@
         <!-- Helidon uses jul -->
         <dependency>
             <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
             <artifactId>jul-to-slf4j</artifactId>
+            <version>${slf4j.version}</version>
         </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
+            <version>1.2.3</version>
+        </dependency>
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>6.2</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.helidon.webserver</groupId>
+            <artifactId>helidon-webserver</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.helidon.health</groupId>
+            <artifactId>helidon-health</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.helidon.health</groupId>
+            <artifactId>helidon-health-checks</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.helidon.media.jackson</groupId>
+            <artifactId>helidon-media-jackson-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.helidon.metrics</groupId>
+            <artifactId>helidon-metrics2</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.helidon.microprofile.config</groupId>
+            <artifactId>helidon-microprofile-config</artifactId>
         </dependency>
 
         <dependency>
@@ -52,6 +92,16 @@
                     <groupId>com.google.code.findbugs</groupId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.8.6</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>3.11.1</version>
         </dependency>
 
         <dependency>

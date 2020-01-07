@@ -5,7 +5,7 @@ module dapla.spark.protobuf {
     requires com.google.common;
     requires io.grpc;
     requires grpc.stub;
-    requires protobuf.java;
+    requires com.google.protobuf;
     requires grpc.protobuf;
     requires java.annotation;
 }
