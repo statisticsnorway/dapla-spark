@@ -6,13 +6,13 @@ import io.helidon.config.spi.ConfigSource;
 import io.helidon.grpc.server.GrpcRouting;
 import io.helidon.grpc.server.GrpcServer;
 import io.helidon.grpc.server.GrpcServerConfiguration;
-import io.helidon.media.jackson.server.JacksonSupport;
 import io.helidon.metrics.MetricsSupport;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerConfiguration;
 import io.helidon.webserver.WebServer;
 import no.ssb.dapla.spark.service.health.Health;
 import no.ssb.dapla.spark.service.health.ReadinessSample;
+import no.ssb.helidon.media.protobuf.ProtobufJsonSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
@@ -20,7 +20,11 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.logging.LogManager;
@@ -86,7 +90,7 @@ public class Application {
 
         // routing
         Routing routing = Routing.builder()
-                .register(JacksonSupport.create())
+                .register(ProtobufJsonSupport.create())
                 .register(MetricsSupport.create())
                 .register(health)
                 .register("/sparkplugin", sparkPluginService)

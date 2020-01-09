@@ -51,6 +51,12 @@
         </dependency>
 
         <dependency>
+            <groupId>no.ssb.helidon</groupId>
+            <artifactId>helidon-media-protobuf-json-server</artifactId>
+            <!--            TODO: Use a real version-->
+            <version>0.1-20200109.093209-2</version>
+        </dependency>
+        <dependency>
             <groupId>io.helidon.webserver</groupId>
             <artifactId>helidon-webserver</artifactId>
         </dependency>
