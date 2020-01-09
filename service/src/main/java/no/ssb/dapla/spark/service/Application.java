@@ -1,6 +1,8 @@
 package no.ssb.dapla.spark.service;
 
 import ch.qos.logback.classic.util.ContextInitializer;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import io.helidon.config.Config;
 import io.helidon.config.spi.ConfigSource;
 import io.helidon.grpc.server.GrpcRouting;
@@ -10,6 +12,8 @@ import io.helidon.metrics.MetricsSupport;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerConfiguration;
 import io.helidon.webserver.WebServer;
+import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc;
+import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceStub;
 import no.ssb.dapla.spark.service.health.Health;
 import no.ssb.dapla.spark.service.health.ReadinessSample;
 import no.ssb.helidon.media.protobuf.ProtobufJsonSupport;
@@ -20,6 +24,7 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -85,8 +90,22 @@ public class Application {
         // initialize health, including a database connectivity wait-loop
         Health health = new Health(() -> get(WebServer.class));
 
+        // catalog grpc service
+        ManagedChannel catalogChannel = ManagedChannelBuilder
+                .forAddress(
+                        config.get("catalog-service").get("host").asString().orElse("localhost"),
+                        config.get("catalog-service").get("port").asInt().orElse(1408)
+                )
+                .usePlaintext() // TODO: Use TLS on both client and server
+                .build();
+
+        put(ManagedChannel.class, catalogChannel);
+
+        CatalogServiceStub catalogService = CatalogServiceGrpc.newStub(catalogChannel);
+        put(CatalogServiceStub.class, catalogService);
+
         // services
-        SparkPluginService sparkPluginService = new SparkPluginService();
+        SparkPluginService sparkPluginService = new SparkPluginService(catalogService);
 
         // routing
         Routing routing = Routing.builder()
@@ -112,7 +131,6 @@ public class Application {
         put(GrpcServer.class, grpcServer);
     }
 
-
     public CompletionStage<Application> start() {
         return get(WebServer.class).start()
                 .thenCombine(get(GrpcServer.class).start(), (webServer, grpcServer) -> this);
@@ -120,11 +138,28 @@ public class Application {
 
     public Application stop() {
         try {
-            get(WebServer.class).shutdown().thenCombine(get(GrpcServer.class).shutdown(), ((webServer, grpcServer) -> this))
-                    .toCompletableFuture().get(2, TimeUnit.SECONDS);
+            get(WebServer.class).shutdown()
+                    .thenCombine(get(GrpcServer.class).shutdown(), ((webServer, grpcServer) -> this))
+                    .thenCombine(CompletableFuture.runAsync(() -> shutdownAndAwaitTermination(get(ManagedChannel.class))), (application, aVoid) -> this)
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS);
+
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             throw new RuntimeException(e);
         }
         return this;
+    }
+
+    void shutdownAndAwaitTermination(ManagedChannel managedChannel) {
+        managedChannel.shutdown();
+        try {
+            if (!managedChannel.awaitTermination(5, TimeUnit.SECONDS)) {
+                managedChannel.shutdownNow(); // Cancel currently executing tasks
+                if (!managedChannel.awaitTermination(5, TimeUnit.SECONDS))
+                    LOG.error("ManagedChannel did not terminate");
+            }
+        } catch (InterruptedException ie) {
+            managedChannel.shutdownNow(); // (Re-)Cancel if current thread also interrupted
+            Thread.currentThread().interrupt();
+        }
     }
 }

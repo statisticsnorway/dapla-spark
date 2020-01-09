@@ -1,0 +1,3 @@
+catalog-service:
+  host: localhost
+  port: 1408

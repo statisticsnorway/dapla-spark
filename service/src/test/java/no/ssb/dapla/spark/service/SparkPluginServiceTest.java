@@ -15,6 +15,6 @@ class SparkPluginServiceTest {
 
     @Test
     void thatLoadDatasetWorks() {
-        assertThat(testClient.get("/sparkplugin/hello").expect200Ok().body()).isEqualTo("hello");
+        assertThat(testClient.get("/sparkplugin/prepareRead").expect200Ok().body()).isEqualTo("hello");
     }
 }
