@@ -1,5 +1,7 @@
 module dapla.spark.service {
     requires dapla.spark.protobuf;
+    requires no.ssb.dapla.catalog.protobuf;
+    requires no.ssb.helidon.media.protobuf.json.server;
     requires org.slf4j;
     requires jul.to.slf4j;
     requires org.reactivestreams;

@@ -19,6 +19,16 @@
         <slf4j.version>1.7.30</slf4j.version>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>ssb-bip-releases</id>
+            <url>https://nexus.prod-bip-ci.ssb.no/repository/maven-public/</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
     <dependencies>
 
         <dependency>
@@ -30,7 +40,7 @@
         <dependency>
             <groupId>no.ssb.dapla.catalog</groupId>
             <artifactId>dapla-catalog-protobuf</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
+            <version>0.1</version>
         </dependency>
 
         <!-- Helidon uses jul -->
@@ -59,8 +69,7 @@
         <dependency>
             <groupId>no.ssb.helidon</groupId>
             <artifactId>helidon-media-protobuf-json-server</artifactId>
-            <!--            TODO: Use a real version-->
-            <version>0.1-20200109.093209-2</version>
+            <version>0.1</version>
         </dependency>
         <dependency>
             <groupId>io.helidon.webserver</groupId>
