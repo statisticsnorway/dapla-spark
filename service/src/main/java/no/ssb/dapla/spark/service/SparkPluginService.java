@@ -1,5 +1,10 @@
 package no.ssb.dapla.spark.service;
 
+import com.google.common.util.concurrent.AsyncFunction;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import io.grpc.Status;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
@@ -9,9 +14,13 @@ import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerRequest;
 import io.helidon.webserver.ServerResponse;
 import io.helidon.webserver.Service;
-import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceStub;
-import no.ssb.dapla.catalog.protobuf.GetDatasetRequest;
-import no.ssb.dapla.catalog.protobuf.GetDatasetResponse;
+import no.ssb.dapla.auth.dataset.protobuf.AccessCheckRequest;
+import no.ssb.dapla.auth.dataset.protobuf.AccessCheckResponse;
+import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceFutureStub;
+import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceFutureStub;
+import no.ssb.dapla.catalog.protobuf.Dataset;
+import no.ssb.dapla.catalog.protobuf.GetByNameDatasetRequest;
+import no.ssb.dapla.catalog.protobuf.GetByNameDatasetResponse;
 import no.ssb.dapla.spark.protobuf.DataSet;
 import no.ssb.dapla.spark.protobuf.DataSetRequest;
 import no.ssb.dapla.spark.protobuf.HelloRequest;
@@ -19,10 +28,16 @@ import no.ssb.dapla.spark.protobuf.HelloResponse;
 import no.ssb.dapla.spark.protobuf.LoadDataSetResponse;
 import no.ssb.dapla.spark.protobuf.SaveDataSetResponse;
 import no.ssb.dapla.spark.protobuf.SparkPluginServiceGrpc;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.eclipse.microprofile.metrics.MetricRegistry;
 import org.eclipse.microprofile.metrics.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+
+import static java.util.Arrays.asList;
 
 public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServiceImplBase implements Service {
 
@@ -30,44 +45,77 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
 
     private final Timer helloTimer = RegistryFactory.getInstance().getRegistry(MetricRegistry.Type.APPLICATION).timer("accessTimer");
 
-    final CatalogServiceStub catalogService;
+    final CatalogServiceFutureStub catalogService;
 
-    public SparkPluginService(CatalogServiceStub catalogService) {
+    final AuthServiceFutureStub authService;
+
+    public SparkPluginService(CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
         this.catalogService = catalogService;
+        this.authService = authService;
     }
 
     @Override
     public void update(Routing.Rules rules) {
-        rules.get("/prepareRead", this::prepareRead);
+        rules.get("/", this::getDatasetMeta);
     }
 
-    void prepareRead(ServerRequest request, ServerResponse response) {
+    void getDatasetMeta(ServerRequest request, ServerResponse response) {
 
-        GetDatasetRequest datasetRequest = GetDatasetRequest.newBuilder()
-                .setId("123")
+        Optional<String> maybeOperation = request.queryParams().first("operation");
+        if (maybeOperation.isEmpty()) {
+            response.status(Http.Status.BAD_REQUEST_400).send("Expected 'operation'");
+            return;
+        }
+        String operation = maybeOperation.get();
+
+        Optional<String> maybeName = request.queryParams().first("name");
+        if (maybeName.isEmpty()) {
+            response.status(Http.Status.BAD_REQUEST_400).send("Expected 'name'");
+            return;
+        }
+        String name = maybeName.get();
+
+        GetByNameDatasetRequest getDatasetRequest = GetByNameDatasetRequest.newBuilder()
+                .addAllName(asList(name.split("/")))
                 .build();
 
+        ListenableFuture<GetByNameDatasetResponse> datasetFuture = catalogService.getByName(getDatasetRequest);
 
-        StreamObserver<GetDatasetResponse> responseObserver = new StreamObserver<>() {
-            @Override
-            public void onNext(GetDatasetResponse value) {
-                LOG.info("Found dataset {}", value.getDataset().toString());
-                response.status(Http.Status.OK_200).send(value.getDataset());
+        AsyncFunction<GetByNameDatasetResponse, AccessCheckResponse> hasAccessFunction = datasetResponse -> {
+            if (datasetResponse == null || datasetResponse.getDataset() == null) {
+                return null;
             }
+            Dataset dataset = datasetResponse.getDataset();
 
-            @Override
-            public void onError(Throwable t) {
-                LOG.error("Could not get dataset", t);
-                response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
-            }
+            AccessCheckRequest checkRequest = AccessCheckRequest.newBuilder()
+                    .setUserId("") // TODO
+                    .setNamespace(name)
+                    .setPrivilege(operation)
+                    .setValuation(dataset.getValuation().name())
+                    .setState(dataset.getState().name())
+                    .build();
 
-            @Override
-            public void onCompleted() {
-                LOG.info("Done");
-            }
+            return authService.hasAccess(checkRequest);
         };
 
-        catalogService.get(datasetRequest, responseObserver);
+        ListenableFuture<AccessCheckResponse> accessCheckFuture = Futures.transformAsync(datasetFuture, hasAccessFunction, MoreExecutors.directExecutor());
+
+        Futures.addCallback(accessCheckFuture, new FutureCallback<>() {
+            @Override
+            public void onSuccess(@Nullable AccessCheckResponse result) {
+                if (result != null && result.getAllowed()) {
+                    response.status(Http.Status.OK_200).send();
+                    return;
+                }
+                response.status(Http.Status.FORBIDDEN_403).send();
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                LOG.error("Failed to get dataset meta", t);
+                response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
+            }
+        }, MoreExecutors.directExecutor());
     }
 
     @Override

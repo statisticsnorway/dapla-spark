@@ -12,7 +12,10 @@ import io.helidon.metrics.MetricsSupport;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerConfiguration;
 import io.helidon.webserver.WebServer;
+import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc;
+import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceFutureStub;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc;
+import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceFutureStub;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceStub;
 import no.ssb.dapla.spark.service.health.Health;
 import no.ssb.dapla.spark.service.health.ReadinessSample;
@@ -96,16 +99,21 @@ public class Application {
                         config.get("catalog-service").get("host").asString().orElse("localhost"),
                         config.get("catalog-service").get("port").asInt().orElse(1408)
                 )
-                .usePlaintext() // TODO: Use TLS on both client and server
+                .usePlaintext()
                 .build();
+        CatalogServiceFutureStub catalogService = CatalogServiceGrpc.newFutureStub(catalogChannel);
+        put(CatalogServiceFutureStub.class, catalogService);
 
-        put(ManagedChannel.class, catalogChannel);
-
-        CatalogServiceStub catalogService = CatalogServiceGrpc.newStub(catalogChannel);
-        put(CatalogServiceStub.class, catalogService);
+        // dataset access grpc service
+        ManagedChannel datasetAccessChannel = ManagedChannelBuilder
+                .forAddress("localhost", 7070)
+                .usePlaintext()
+                .build();
+        AuthServiceFutureStub authService = AuthServiceGrpc.newFutureStub(datasetAccessChannel);
+        put(AuthServiceFutureStub.class, authService);
 
         // services
-        SparkPluginService sparkPluginService = new SparkPluginService(catalogService);
+        SparkPluginService sparkPluginService = new SparkPluginService(catalogService, authService);
 
         // routing
         Routing routing = Routing.builder()
@@ -140,7 +148,8 @@ public class Application {
         try {
             get(WebServer.class).shutdown()
                     .thenCombine(get(GrpcServer.class).shutdown(), ((webServer, grpcServer) -> this))
-                    .thenCombine(CompletableFuture.runAsync(() -> shutdownAndAwaitTermination(get(ManagedChannel.class))), (application, aVoid) -> this)
+                    .thenCombine(CompletableFuture.runAsync(() -> shutdownAndAwaitTermination((ManagedChannel) get(CatalogServiceFutureStub.class).getChannel())), (application, aVoid) -> this)
+                    .thenCombine(CompletableFuture.runAsync(() -> shutdownAndAwaitTermination((ManagedChannel) get(AuthServiceFutureStub.class).getChannel())), (application, aVoid) -> this)
                     .toCompletableFuture().get(10, TimeUnit.SECONDS);
 
         } catch (InterruptedException | ExecutionException | TimeoutException e) {

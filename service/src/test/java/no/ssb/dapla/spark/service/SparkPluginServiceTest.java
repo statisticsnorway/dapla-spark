@@ -15,6 +15,7 @@ class SparkPluginServiceTest {
 
     @Test
     void thatLoadDatasetWorks() {
-        assertThat(testClient.get("/sparkplugin/prepareRead").expect200Ok().body()).isEqualTo("hello");
+        assertThat(testClient.get("/dataset-meta?name=a/b/c&operation=READ").expect200Ok().body())
+                .isEqualTo("{\"id\": 123, \"locations\": [\"f1\", \"f2\"]}");
     }
 }

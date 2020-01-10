@@ -43,6 +43,12 @@
             <version>0.1</version>
         </dependency>
 
+        <dependency>
+            <groupId>no.ssb.dapla.auth.dataset</groupId>
+            <artifactId>dapla-auth-dataset-protobuf</artifactId>
+            <version>0.1</version>
+        </dependency>
+
         <!-- Helidon uses jul -->
         <dependency>
             <groupId>org.slf4j</groupId>
