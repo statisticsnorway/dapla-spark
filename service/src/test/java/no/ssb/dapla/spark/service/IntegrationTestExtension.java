@@ -1,5 +1,6 @@
 package no.ssb.dapla.spark.service;
 
+import io.grpc.BindableService;
 import io.grpc.Channel;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -12,9 +13,7 @@ import io.helidon.config.spi.ConfigSource;
 import io.helidon.grpc.server.GrpcServer;
 import io.helidon.webserver.WebServer;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc;
-import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceImplBase;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc;
-import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceImplBase;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -60,22 +59,21 @@ public class IntegrationTestExtension implements BeforeEachCallback, BeforeAllCa
         configSourceSupplierList.add(classpath("application.yaml"));
 
         Class<?> testClass = extensionContext.getRequiredTestClass();
-        ApplicationConfig applicationConfig = testClass.getDeclaredAnnotation(ApplicationConfig.class);
-        Class<? extends ApplicationRegistry> registryClazz = applicationConfig.value();
+        GrpcMockRegistryConfig applicationConfig = testClass.getDeclaredAnnotation(GrpcMockRegistryConfig.class);
+        Class<? extends GrpcMockRegistry> registryClazz = applicationConfig.value();
         Constructor<?> constructor = registryClazz.getDeclaredConstructors()[0];
 
-        ApplicationRegistry applicationRegistry = (ApplicationRegistry) constructor.newInstance();
+        GrpcMockRegistry grpcMockRegistry = (GrpcMockRegistry) constructor.newInstance();
 
         String serverName = InProcessServerBuilder.generateName();
 
         MutableHandlerRegistry serviceRegistry = new MutableHandlerRegistry();
 
-        serviceRegistry.addService(applicationRegistry.get(CatalogServiceImplBase.class));
-        serviceRegistry.addService(applicationRegistry.get(AuthServiceImplBase.class));
+        for (BindableService bindableService : grpcMockRegistry) {
+            serviceRegistry.addService(bindableService);
+        }
 
-        server = InProcessServerBuilder.forName(serverName).fallbackHandlerRegistry(serviceRegistry).directExecutor().build();
-
-        server.start();
+        server = InProcessServerBuilder.forName(serverName).fallbackHandlerRegistry(serviceRegistry).directExecutor().build().start();
 
         ManagedChannel channel = InProcessChannelBuilder.forName(serverName).directExecutor().build();
 
@@ -138,8 +136,10 @@ public class IntegrationTestExtension implements BeforeEachCallback, BeforeAllCa
 
     @Override
     public void afterAll(ExtensionContext extensionContext) {
+        server.shutdown();
         application.stop();
         shutdownAndAwaitTermination(grpcChannel);
+        awaitTerminationOfGrpcServer(server);
     }
 
     void shutdownAndAwaitTermination(ManagedChannel managedChannel) {
@@ -152,6 +152,19 @@ public class IntegrationTestExtension implements BeforeEachCallback, BeforeAllCa
             }
         } catch (InterruptedException ie) {
             managedChannel.shutdownNow(); // (Re-)Cancel if current thread also interrupted
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    void awaitTerminationOfGrpcServer(Server server) {
+        try {
+            if (!server.awaitTermination(5, TimeUnit.SECONDS)) {
+                server.shutdownNow(); // Cancel currently executing tasks
+                if (!server.awaitTermination(5, TimeUnit.SECONDS))
+                    System.err.println("Server did not terminate");
+            }
+        } catch (InterruptedException e) {
+            server.shutdownNow(); // (Re-)Cancel if current thread also interrupted
             Thread.currentThread().interrupt();
         }
     }
