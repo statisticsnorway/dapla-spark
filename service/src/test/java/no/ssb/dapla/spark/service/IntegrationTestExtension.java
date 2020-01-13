@@ -3,16 +3,25 @@ package no.ssb.dapla.spark.service;
 import io.grpc.Channel;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Server;
+import io.grpc.inprocess.InProcessChannelBuilder;
+import io.grpc.inprocess.InProcessServerBuilder;
+import io.grpc.util.MutableHandlerRegistry;
 import io.helidon.config.Config;
 import io.helidon.config.spi.ConfigSource;
 import io.helidon.grpc.server.GrpcServer;
 import io.helidon.webserver.WebServer;
+import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc;
+import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceImplBase;
+import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc;
+import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceImplBase;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 import javax.inject.Inject;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.LinkedList;
 import java.util.List;
@@ -27,6 +36,7 @@ public class IntegrationTestExtension implements BeforeEachCallback, BeforeAllCa
     TestClient client;
     Application application;
     ManagedChannel grpcChannel;
+    Server server;
 
     @Override
     public void beforeAll(ExtensionContext extensionContext) throws Exception {
@@ -48,8 +58,34 @@ public class IntegrationTestExtension implements BeforeEachCallback, BeforeAllCa
             configSourceSupplierList.add(classpath("application-dev.yaml"));
         }
         configSourceSupplierList.add(classpath("application.yaml"));
-        application = new Application(Config.builder().sources(configSourceSupplierList).build());
+
+        Class<?> testClass = extensionContext.getRequiredTestClass();
+        ApplicationConfig applicationConfig = testClass.getDeclaredAnnotation(ApplicationConfig.class);
+        Class<? extends ApplicationRegistry> registryClazz = applicationConfig.value();
+        Constructor<?> constructor = registryClazz.getDeclaredConstructors()[0];
+
+        ApplicationRegistry applicationRegistry = (ApplicationRegistry) constructor.newInstance();
+
+        String serverName = InProcessServerBuilder.generateName();
+
+        MutableHandlerRegistry serviceRegistry = new MutableHandlerRegistry();
+
+        serviceRegistry.addService(applicationRegistry.get(CatalogServiceImplBase.class));
+        serviceRegistry.addService(applicationRegistry.get(AuthServiceImplBase.class));
+
+        server = InProcessServerBuilder.forName(serverName).fallbackHandlerRegistry(serviceRegistry).directExecutor().build();
+
+        server.start();
+
+        ManagedChannel channel = InProcessChannelBuilder.forName(serverName).directExecutor().build();
+
+        CatalogServiceGrpc.CatalogServiceFutureStub catalogServiceFutureStub = CatalogServiceGrpc.newFutureStub(channel);
+        AuthServiceGrpc.AuthServiceFutureStub authServiceFutureStub = AuthServiceGrpc.newFutureStub(channel);
+
+        application = new Application(Config.builder().sources(configSourceSupplierList).build(), catalogServiceFutureStub, authServiceFutureStub);
+
         application.start().toCompletableFuture().get(5, TimeUnit.SECONDS);
+
 
         grpcChannel = ManagedChannelBuilder.forAddress("localhost", application.get(GrpcServer.class).port())
                 .usePlaintext()

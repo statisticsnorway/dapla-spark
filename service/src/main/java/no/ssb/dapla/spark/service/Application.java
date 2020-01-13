@@ -68,7 +68,25 @@ public class Application {
         }
         configSourceSupplierList.add(file("conf/application.yaml").optional());
         configSourceSupplierList.add(classpath("application.yaml"));
-        Application application = new Application(Config.builder().sources(configSourceSupplierList).build());
+
+        Config config = Config.builder().sources(configSourceSupplierList).build();
+
+        ManagedChannel catalogChannel = ManagedChannelBuilder
+                .forAddress(
+                        config.get("catalog-service").get("host").asString().orElse("localhost"),
+                        config.get("catalog-service").get("port").asInt().orElse(1408)
+                )
+                .usePlaintext()
+                .build();
+        CatalogServiceFutureStub catalogService = CatalogServiceGrpc.newFutureStub(catalogChannel);
+
+        ManagedChannel datasetAccessChannel = ManagedChannelBuilder
+                .forAddress("localhost", 7070)
+                .usePlaintext()
+                .build();
+        AuthServiceFutureStub authService = AuthServiceGrpc.newFutureStub(datasetAccessChannel);
+
+        Application application = new Application(config, catalogService, authService);
         application.start().toCompletableFuture().orTimeout(10, TimeUnit.SECONDS)
                 .thenAccept(app -> LOG.info("Webserver running at port: {}, Grpcserver running at port: {}, started in {} ms",
                         app.get(WebServer.class).port(), app.get(GrpcServer.class).port(), System.currentTimeMillis() - startTime))
@@ -89,7 +107,7 @@ public class Application {
         return (T) instanceByType.get(clazz);
     }
 
-    public Application(Config config) {
+    public Application(Config config, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
         put(Config.class, config);
 
         applyGrpcProvidersWorkaround();
@@ -100,22 +118,9 @@ public class Application {
         Health health = new Health(() -> get(WebServer.class));
 
         // catalog grpc service
-        ManagedChannel catalogChannel = ManagedChannelBuilder
-                .forAddress(
-                        config.get("catalog-service").get("host").asString().orElse("localhost"),
-                        config.get("catalog-service").get("port").asInt().orElse(1408)
-                )
-                .usePlaintext()
-                .build();
-        CatalogServiceFutureStub catalogService = CatalogServiceGrpc.newFutureStub(catalogChannel).withDeadlineAfter(10, TimeUnit.SECONDS);
         put(CatalogServiceFutureStub.class, catalogService);
 
         // dataset access grpc service
-        ManagedChannel datasetAccessChannel = ManagedChannelBuilder
-                .forAddress("localhost", 7070)
-                .usePlaintext()
-                .build();
-        AuthServiceFutureStub authService = AuthServiceGrpc.newFutureStub(datasetAccessChannel).withDeadlineAfter(10, TimeUnit.SECONDS);
         put(AuthServiceFutureStub.class, authService);
 
         // services

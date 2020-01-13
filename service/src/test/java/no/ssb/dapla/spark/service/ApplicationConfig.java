@@ -1,0 +1,18 @@
+package no.ssb.dapla.spark.service;
+
+import org.junit.jupiter.api.extension.Extension;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target({ ElementType.TYPE, ElementType.METHOD })
+@Retention(RetentionPolicy.RUNTIME)
+public @interface ApplicationConfig {
+    /**
+     * An array of one or more {@link Extension} classes to register.
+     */
+    Class<? extends ApplicationRegistry> value();
+
+}
