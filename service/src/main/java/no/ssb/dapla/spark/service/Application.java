@@ -107,7 +107,7 @@ public class Application {
                 )
                 .usePlaintext()
                 .build();
-        CatalogServiceFutureStub catalogService = CatalogServiceGrpc.newFutureStub(catalogChannel);
+        CatalogServiceFutureStub catalogService = CatalogServiceGrpc.newFutureStub(catalogChannel).withDeadlineAfter(10, TimeUnit.SECONDS);
         put(CatalogServiceFutureStub.class, catalogService);
 
         // dataset access grpc service
@@ -115,7 +115,7 @@ public class Application {
                 .forAddress("localhost", 7070)
                 .usePlaintext()
                 .build();
-        AuthServiceFutureStub authService = AuthServiceGrpc.newFutureStub(datasetAccessChannel);
+        AuthServiceFutureStub authService = AuthServiceGrpc.newFutureStub(datasetAccessChannel).withDeadlineAfter(10, TimeUnit.SECONDS);
         put(AuthServiceFutureStub.class, authService);
 
         // services
