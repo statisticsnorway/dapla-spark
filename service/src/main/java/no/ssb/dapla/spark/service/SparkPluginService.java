@@ -97,7 +97,7 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
                 Dataset dataset = datasetResponse.getDataset();
 
                 AccessCheckRequest checkRequest = AccessCheckRequest.newBuilder()
-                        .setUserId("") // TODO
+                        .setUserId("123") // TODO: Extract this from incoming request
                         .setNamespace(name)
                         .setPrivilege(operation)
                         .setValuation(dataset.getValuation().name())
@@ -111,7 +111,7 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
                     @Override
                     public void onSuccess(@Nullable AccessCheckResponse result) {
                         if (result != null && result.getAllowed()) {
-                            response.status(Http.Status.OK_200).send();
+                            response.status(Http.Status.OK_200).send(dataset);
                             return;
                         }
                         response.status(Http.Status.FORBIDDEN_403).send();

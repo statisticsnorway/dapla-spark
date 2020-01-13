@@ -131,7 +131,7 @@ public class Application {
                 .register(ProtobufJsonSupport.create())
                 .register(MetricsSupport.create())
                 .register(health)
-                .register("/sparkplugin", sparkPluginService)
+                .register("/dataset-meta", sparkPluginService)
                 .build();
         put(Routing.class, routing);
 
