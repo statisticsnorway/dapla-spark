@@ -9,6 +9,10 @@ import no.ssb.dapla.catalog.protobuf.Dataset;
 import no.ssb.dapla.catalog.protobuf.DatasetId;
 import no.ssb.dapla.catalog.protobuf.GetByNameDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.GetByNameDatasetResponse;
+import no.ssb.testing.helidon.GrpcMockRegistry;
+import no.ssb.testing.helidon.GrpcMockRegistryConfig;
+import no.ssb.testing.helidon.IntegrationTestExtension;
+import no.ssb.testing.helidon.TestClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -21,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @GrpcMockRegistryConfig(DatasetMetaTest.DatasetMetaTestGrpcMockRegistry.class)
 @ExtendWith(IntegrationTestExtension.class)
-class DatasetMetaTest {
+public class DatasetMetaTest {
 
     @Inject
     TestClient testClient;
@@ -47,7 +51,7 @@ class DatasetMetaTest {
 
     private static final Set<String> ACCESS = Set.of("123");
 
-    static class DatasetMetaTestGrpcMockRegistry extends GrpcMockRegistry {
+    public static class DatasetMetaTestGrpcMockRegistry extends GrpcMockRegistry {
         public DatasetMetaTestGrpcMockRegistry() {
             add(new CatalogServiceImplBase() {
                 @Override

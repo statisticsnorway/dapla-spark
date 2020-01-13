@@ -1,5 +1,7 @@
 package no.ssb.dapla.spark.service;
 
+import no.ssb.testing.helidon.IntegrationTestExtension;
+import no.ssb.testing.helidon.TestClient;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.inject.Inject;

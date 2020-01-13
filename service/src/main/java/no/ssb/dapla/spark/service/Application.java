@@ -23,6 +23,8 @@ import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceFutureStub;
 import no.ssb.dapla.spark.service.health.Health;
 import no.ssb.dapla.spark.service.health.ReadinessSample;
+import no.ssb.helidon.application.HelidonApplication;
+import no.ssb.helidon.application.HelidonApplicationBuilder;
 import no.ssb.helidon.media.protobuf.ProtobufJsonSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,9 +36,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.logging.LogManager;
@@ -44,7 +44,7 @@ import java.util.logging.LogManager;
 import static io.helidon.config.ConfigSources.classpath;
 import static io.helidon.config.ConfigSources.file;
 
-public class Application {
+public class Application implements HelidonApplication {
 
     private static final Logger LOG;
 
@@ -61,32 +61,7 @@ public class Application {
 
     public static void main(String[] args) {
         long startTime = System.currentTimeMillis();
-        List<Supplier<ConfigSource>> configSourceSupplierList = new LinkedList<>();
-        String overrideFile = System.getenv("HELIDON_CONFIG_FILE");
-        if (overrideFile != null) {
-            configSourceSupplierList.add(file(overrideFile).optional());
-        }
-        configSourceSupplierList.add(file("conf/application.yaml").optional());
-        configSourceSupplierList.add(classpath("application.yaml"));
-
-        Config config = Config.builder().sources(configSourceSupplierList).build();
-
-        ManagedChannel catalogChannel = ManagedChannelBuilder
-                .forAddress(
-                        config.get("catalog-service").get("host").asString().orElse("localhost"),
-                        config.get("catalog-service").get("port").asInt().orElse(1408)
-                )
-                .usePlaintext()
-                .build();
-        CatalogServiceFutureStub catalogService = CatalogServiceGrpc.newFutureStub(catalogChannel);
-
-        ManagedChannel datasetAccessChannel = ManagedChannelBuilder
-                .forAddress("localhost", 7070)
-                .usePlaintext()
-                .build();
-        AuthServiceFutureStub authService = AuthServiceGrpc.newFutureStub(datasetAccessChannel);
-
-        Application application = new Application(config, catalogService, authService);
+        HelidonApplication application = new Builder().build();
         application.start().toCompletableFuture().orTimeout(10, TimeUnit.SECONDS)
                 .thenAccept(app -> LOG.info("Webserver running at port: {}, Grpcserver running at port: {}, started in {} ms",
                         app.get(WebServer.class).port(), app.get(GrpcServer.class).port(), System.currentTimeMillis() - startTime))
@@ -95,6 +70,56 @@ public class Application {
                     System.exit(1);
                     return null;
                 });
+    }
+
+    public static class Builder implements HelidonApplicationBuilder {
+        ManagedChannel globalGrpcClientChannel;
+
+        @Override
+        public <T> HelidonApplicationBuilder override(Class<T> clazz, T instance) {
+            if (ManagedChannel.class.isAssignableFrom(clazz)) {
+                globalGrpcClientChannel = (ManagedChannel) instance;
+            }
+            return this;
+        }
+
+        @Override
+        public HelidonApplication build() {
+            List<Supplier<ConfigSource>> configSourceSupplierList = new LinkedList<>();
+            String overrideFile = System.getenv("HELIDON_CONFIG_FILE");
+            if (overrideFile != null) {
+                configSourceSupplierList.add(file(overrideFile).optional());
+            }
+            configSourceSupplierList.add(file("conf/application.yaml").optional());
+            configSourceSupplierList.add(classpath("application.yaml"));
+
+            Config config = Config.builder().sources(configSourceSupplierList).build();
+
+            CatalogServiceFutureStub catalogService;
+            AuthServiceFutureStub authService;
+            if (globalGrpcClientChannel == null) {
+                ManagedChannel catalogChannel = ManagedChannelBuilder
+                        .forAddress(
+                                config.get("catalog-service").get("host").asString().orElse("localhost"),
+                                config.get("catalog-service").get("port").asInt().orElse(1408)
+                        )
+                        .usePlaintext()
+                        .build();
+                catalogService = CatalogServiceGrpc.newFutureStub(catalogChannel);
+
+                ManagedChannel datasetAccessChannel = ManagedChannelBuilder
+                        .forAddress("localhost", 7070)
+                        .usePlaintext()
+                        .build();
+                authService = AuthServiceGrpc.newFutureStub(datasetAccessChannel);
+            } else {
+                catalogService = CatalogServiceGrpc.newFutureStub(globalGrpcClientChannel);
+                authService = AuthServiceGrpc.newFutureStub(globalGrpcClientChannel);
+            }
+
+            Application application = new Application(config, catalogService, authService);
+            return application;
+        }
     }
 
     private final Map<Class<?>, Object> instanceByType = new ConcurrentHashMap<>();
@@ -107,7 +132,7 @@ public class Application {
         return (T) instanceByType.get(clazz);
     }
 
-    public Application(Config config, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
+    private Application(Config config, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
         put(Config.class, config);
 
         applyGrpcProvidersWorkaround();
@@ -166,18 +191,12 @@ public class Application {
                 .thenCombine(get(GrpcServer.class).start(), (webServer, grpcServer) -> this);
     }
 
-    public Application stop() {
-        try {
-            get(WebServer.class).shutdown()
-                    .thenCombine(get(GrpcServer.class).shutdown(), ((webServer, grpcServer) -> this))
-                    .thenCombine(CompletableFuture.runAsync(() -> shutdownAndAwaitTermination((ManagedChannel) get(CatalogServiceFutureStub.class).getChannel())), (application, aVoid) -> this)
-                    .thenCombine(CompletableFuture.runAsync(() -> shutdownAndAwaitTermination((ManagedChannel) get(AuthServiceFutureStub.class).getChannel())), (application, aVoid) -> this)
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS);
-
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            throw new RuntimeException(e);
-        }
-        return this;
+    public CompletionStage<Application> stop() {
+        return get(WebServer.class).shutdown()
+                .thenCombine(get(GrpcServer.class).shutdown(), ((webServer, grpcServer) -> this))
+                .thenCombine(CompletableFuture.runAsync(() -> shutdownAndAwaitTermination((ManagedChannel) get(CatalogServiceFutureStub.class).getChannel())), (application, aVoid) -> this)
+                .thenCombine(CompletableFuture.runAsync(() -> shutdownAndAwaitTermination((ManagedChannel) get(AuthServiceFutureStub.class).getChannel())), (application, aVoid) -> this)
+                ;
     }
 
     void shutdownAndAwaitTermination(ManagedChannel managedChannel) {

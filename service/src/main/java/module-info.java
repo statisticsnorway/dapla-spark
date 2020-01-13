@@ -32,6 +32,7 @@ module dapla.spark.service {
     requires com.fasterxml.jackson.datatype.jsr310;
     requires com.google.protobuf.util;
     requires com.google.common;
+    requires no.ssb.helidon.application;
 
     /*
      * Not so well documented requirements are declared here to force fail-fast with proper error message if
@@ -46,4 +47,5 @@ module dapla.spark.service {
 
     requires org.checkerframework.checker.qual;
 
+    provides no.ssb.helidon.application.HelidonApplicationBuilder with no.ssb.dapla.spark.service.Application.Builder;
 }

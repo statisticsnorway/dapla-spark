@@ -32,6 +32,12 @@
     <dependencies>
 
         <dependency>
+            <groupId>no.ssb.helidon</groupId>
+            <artifactId>helidon-application</artifactId>
+            <version>0.1-SNAPSHOT</version>
+        </dependency>
+
+        <dependency>
             <groupId>no.ssb.dapla.spark</groupId>
             <artifactId>dapla-spark-protobuf</artifactId>
             <version>1.0-SNAPSHOT</version>
@@ -116,7 +122,7 @@
                 </exclusion>
                 <exclusion>
                     <artifactId>jsr305</artifactId>
-                    <groupId>com.google.code.findbugs</groupId>
+                    <groupId>com.google.code.finƒdbugs</groupId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -131,6 +137,12 @@
             <version>3.11.1</version>
         </dependency>
 
+        <dependency>
+            <groupId>no.ssb.helidon</groupId>
+            <artifactId>helidon-testing</artifactId>
+            <version>0.1-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
