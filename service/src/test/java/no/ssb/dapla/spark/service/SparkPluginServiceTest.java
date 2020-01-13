@@ -1,6 +1,5 @@
 package no.ssb.dapla.spark.service;
 
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.inject.Inject;
@@ -13,9 +12,9 @@ class SparkPluginServiceTest {
     @Inject
     TestClient testClient;
 
-    @Test
+    //@Test
     void thatLoadDatasetWorks() {
-        assertThat(testClient.get("/dataset-meta?name=a/b/c&operation=READ").expect200Ok().body())
+        assertThat(testClient.get("/sparkplugin?name=a/b/c&operation=READ").expect200Ok().body())
                 .isEqualTo("{\"id\": 123, \"locations\": [\"f1\", \"f2\"]}");
     }
 }
