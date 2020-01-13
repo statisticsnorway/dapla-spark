@@ -1,6 +1,5 @@
 package no.ssb.dapla.spark.service;
 
-import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -19,6 +18,7 @@ import no.ssb.dapla.auth.dataset.protobuf.AccessCheckResponse;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceFutureStub;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceFutureStub;
 import no.ssb.dapla.catalog.protobuf.Dataset;
+import no.ssb.dapla.catalog.protobuf.DatasetId;
 import no.ssb.dapla.catalog.protobuf.GetByNameDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.GetByNameDatasetResponse;
 import no.ssb.dapla.spark.protobuf.DataSet;
@@ -35,9 +35,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 import static java.util.Arrays.asList;
+import static java.util.Optional.ofNullable;
 
 public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServiceImplBase implements Service {
 
@@ -81,33 +81,48 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
 
         ListenableFuture<GetByNameDatasetResponse> datasetFuture = catalogService.getByName(getDatasetRequest);
 
-        AsyncFunction<GetByNameDatasetResponse, AccessCheckResponse> hasAccessFunction = datasetResponse -> {
-            if (datasetResponse == null || datasetResponse.getDataset() == null) {
-                return null;
-            }
-            Dataset dataset = datasetResponse.getDataset();
-
-            AccessCheckRequest checkRequest = AccessCheckRequest.newBuilder()
-                    .setUserId("") // TODO
-                    .setNamespace(name)
-                    .setPrivilege(operation)
-                    .setValuation(dataset.getValuation().name())
-                    .setState(dataset.getState().name())
-                    .build();
-
-            return authService.hasAccess(checkRequest);
-        };
-
-        ListenableFuture<AccessCheckResponse> accessCheckFuture = Futures.transformAsync(datasetFuture, hasAccessFunction, MoreExecutors.directExecutor());
-
-        Futures.addCallback(accessCheckFuture, new FutureCallback<>() {
+        Futures.addCallback(datasetFuture, new FutureCallback<>() {
             @Override
-            public void onSuccess(@Nullable AccessCheckResponse result) {
-                if (result != null && result.getAllowed()) {
-                    response.status(Http.Status.OK_200).send();
+            public void onSuccess(@Nullable GetByNameDatasetResponse datasetResponse) {
+                if (ofNullable(datasetResponse)
+                        .map(GetByNameDatasetResponse::getDataset)
+                        .map(Dataset::getId)
+                        .map(DatasetId::getId)
+                        .orElse("")
+                        .isBlank()) {
+                    response.status(Http.Status.NOT_FOUND_404).send();
                     return;
                 }
-                response.status(Http.Status.FORBIDDEN_403).send();
+
+                Dataset dataset = datasetResponse.getDataset();
+
+                AccessCheckRequest checkRequest = AccessCheckRequest.newBuilder()
+                        .setUserId("") // TODO
+                        .setNamespace(name)
+                        .setPrivilege(operation)
+                        .setValuation(dataset.getValuation().name())
+                        .setState(dataset.getState().name())
+                        .build();
+
+                ListenableFuture<AccessCheckResponse> hasAccessListenableFuture = authService.hasAccess(checkRequest);
+
+                Futures.addCallback(hasAccessListenableFuture, new FutureCallback<>() {
+
+                    @Override
+                    public void onSuccess(@Nullable AccessCheckResponse result) {
+                        if (result != null && result.getAllowed()) {
+                            response.status(Http.Status.OK_200).send();
+                            return;
+                        }
+                        response.status(Http.Status.FORBIDDEN_403).send();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        LOG.error("Failed to get dataset meta", t);
+                        response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
+                    }
+                }, MoreExecutors.directExecutor());
             }
 
             @Override
