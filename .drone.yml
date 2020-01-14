@@ -31,7 +31,7 @@ steps:
   - name: build
     image: maven:3-jdk-11-slim
     commands:
-      - mvn clean verify -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository --no-transfer-progress --batch-mode --global-settings settings.xml
+      - mvn clean verify -U -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository --no-transfer-progress --batch-mode --global-settings settings.xml
     depends_on:
       - authenticate
       - restore-cache
