@@ -47,5 +47,5 @@ module dapla.spark.service {
 
     requires org.checkerframework.checker.qual;
 
-    provides no.ssb.helidon.application.HelidonApplicationBuilder with no.ssb.dapla.spark.service.Application.Builder;
+    provides no.ssb.helidon.application.HelidonApplicationBuilder with no.ssb.dapla.spark.service.ApplicationBuilder;
 }

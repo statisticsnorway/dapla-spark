@@ -3,13 +3,11 @@ package no.ssb.dapla.spark.service;
 import ch.qos.logback.classic.util.ContextInitializer;
 import io.grpc.LoadBalancerRegistry;
 import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolverRegistry;
 import io.grpc.internal.DnsNameResolverProvider;
 import io.grpc.internal.PickFirstLoadBalancerProvider;
 import io.grpc.services.internal.HealthCheckingRoundRobinLoadBalancerProvider;
 import io.helidon.config.Config;
-import io.helidon.config.spi.ConfigSource;
 import io.helidon.grpc.server.GrpcRouting;
 import io.helidon.grpc.server.GrpcServer;
 import io.helidon.grpc.server.GrpcServerConfiguration;
@@ -17,32 +15,23 @@ import io.helidon.metrics.MetricsSupport;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerConfiguration;
 import io.helidon.webserver.WebServer;
-import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceFutureStub;
-import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceFutureStub;
 import no.ssb.dapla.spark.service.health.Health;
 import no.ssb.dapla.spark.service.health.ReadinessSample;
 import no.ssb.helidon.application.HelidonApplication;
-import no.ssb.helidon.application.HelidonApplicationBuilder;
 import no.ssb.helidon.media.protobuf.ProtobufJsonSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.logging.LogManager;
-
-import static io.helidon.config.ConfigSources.classpath;
-import static io.helidon.config.ConfigSources.file;
 
 public class Application implements HelidonApplication {
 
@@ -61,7 +50,7 @@ public class Application implements HelidonApplication {
 
     public static void main(String[] args) {
         long startTime = System.currentTimeMillis();
-        HelidonApplication application = new Builder().build();
+        HelidonApplication application = new ApplicationBuilder().build();
         application.start().toCompletableFuture().orTimeout(10, TimeUnit.SECONDS)
                 .thenAccept(app -> LOG.info("Webserver running at port: {}, Grpcserver running at port: {}, started in {} ms",
                         app.get(WebServer.class).port(), app.get(GrpcServer.class).port(), System.currentTimeMillis() - startTime))
@@ -70,56 +59,6 @@ public class Application implements HelidonApplication {
                     System.exit(1);
                     return null;
                 });
-    }
-
-    public static class Builder implements HelidonApplicationBuilder {
-        ManagedChannel globalGrpcClientChannel;
-
-        @Override
-        public <T> HelidonApplicationBuilder override(Class<T> clazz, T instance) {
-            if (ManagedChannel.class.isAssignableFrom(clazz)) {
-                globalGrpcClientChannel = (ManagedChannel) instance;
-            }
-            return this;
-        }
-
-        @Override
-        public HelidonApplication build() {
-            List<Supplier<ConfigSource>> configSourceSupplierList = new LinkedList<>();
-            String overrideFile = System.getenv("HELIDON_CONFIG_FILE");
-            if (overrideFile != null) {
-                configSourceSupplierList.add(file(overrideFile).optional());
-            }
-            configSourceSupplierList.add(file("conf/application.yaml").optional());
-            configSourceSupplierList.add(classpath("application.yaml"));
-
-            Config config = Config.builder().sources(configSourceSupplierList).build();
-
-            CatalogServiceFutureStub catalogService;
-            AuthServiceFutureStub authService;
-            if (globalGrpcClientChannel == null) {
-                ManagedChannel catalogChannel = ManagedChannelBuilder
-                        .forAddress(
-                                config.get("catalog-service").get("host").asString().orElse("localhost"),
-                                config.get("catalog-service").get("port").asInt().orElse(1408)
-                        )
-                        .usePlaintext()
-                        .build();
-                catalogService = CatalogServiceGrpc.newFutureStub(catalogChannel);
-
-                ManagedChannel datasetAccessChannel = ManagedChannelBuilder
-                        .forAddress("localhost", 7070)
-                        .usePlaintext()
-                        .build();
-                authService = AuthServiceGrpc.newFutureStub(datasetAccessChannel);
-            } else {
-                catalogService = CatalogServiceGrpc.newFutureStub(globalGrpcClientChannel);
-                authService = AuthServiceGrpc.newFutureStub(globalGrpcClientChannel);
-            }
-
-            Application application = new Application(config, catalogService, authService);
-            return application;
-        }
     }
 
     private final Map<Class<?>, Object> instanceByType = new ConcurrentHashMap<>();
@@ -132,7 +71,7 @@ public class Application implements HelidonApplication {
         return (T) instanceByType.get(clazz);
     }
 
-    private Application(Config config, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
+    Application(Config config, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
         put(Config.class, config);
 
         applyGrpcProvidersWorkaround();
