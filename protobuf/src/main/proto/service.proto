@@ -6,7 +6,6 @@ option java_package = "no.ssb.dapla.spark.protobuf";
 service SparkPluginService {
     rpc loadDataSet (DataSetRequest) returns (LoadDataSetResponse);
     rpc saveDataSet (DataSetRequest) returns (SaveDataSetResponse);
-    rpc sayHello (HelloRequest) returns (HelloResponse);
 }
 
 message DataSetRequest {
@@ -35,12 +34,3 @@ message DataSet {
 message SaveDataSetResponse {
     string result = 1;
 }
-
-message HelloRequest {
-    string greeting = 1;
-}
-
-message HelloResponse {
-    string reply = 1;
-}
-

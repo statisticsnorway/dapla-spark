@@ -4,8 +4,6 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import io.grpc.Status;
-import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 import io.helidon.common.http.Http;
 import io.helidon.metrics.RegistryFactory;
@@ -23,8 +21,6 @@ import no.ssb.dapla.catalog.protobuf.GetByNameDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.GetByNameDatasetResponse;
 import no.ssb.dapla.spark.protobuf.DataSet;
 import no.ssb.dapla.spark.protobuf.DataSetRequest;
-import no.ssb.dapla.spark.protobuf.HelloRequest;
-import no.ssb.dapla.spark.protobuf.HelloResponse;
 import no.ssb.dapla.spark.protobuf.LoadDataSetResponse;
 import no.ssb.dapla.spark.protobuf.SaveDataSetResponse;
 import no.ssb.dapla.spark.protobuf.SparkPluginServiceGrpc;
@@ -153,18 +149,5 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
                         .build())
                 .build());
         responseObserver.onCompleted();
-    }
-
-    @Override
-    public void sayHello(HelloRequest request, StreamObserver<HelloResponse> responseObserver) {
-        System.out.println(request.getGreeting());
-
-        try {
-            responseObserver.onNext(HelloResponse.newBuilder().setReply("hello").build());
-            responseObserver.onCompleted();
-
-        } catch (Exception ex) {
-            responseObserver.onError(new StatusException(Status.fromThrowable(ex)));
-        }
     }
 }
