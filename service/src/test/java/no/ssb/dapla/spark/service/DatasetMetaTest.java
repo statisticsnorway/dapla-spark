@@ -11,9 +11,12 @@ import no.ssb.dapla.catalog.protobuf.GetByIdDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.GetByIdDatasetResponse;
 import no.ssb.dapla.catalog.protobuf.MapNameToIdRequest;
 import no.ssb.dapla.catalog.protobuf.MapNameToIdResponse;
+import no.ssb.dapla.catalog.protobuf.SaveDatasetRequest;
+import no.ssb.dapla.catalog.protobuf.SaveDatasetResponse;
 import no.ssb.testing.helidon.GrpcMockRegistry;
 import no.ssb.testing.helidon.GrpcMockRegistryConfig;
 import no.ssb.testing.helidon.IntegrationTestExtension;
+import no.ssb.testing.helidon.ResponseHelper;
 import no.ssb.testing.helidon.TestClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -83,6 +86,12 @@ public class DatasetMetaTest {
                     responseObserver.onNext(responseBuilder.build());
                     responseObserver.onCompleted();
                 }
+
+                @Override
+                public void save(SaveDatasetRequest request, StreamObserver<SaveDatasetResponse> responseObserver) {
+                    responseObserver.onNext(SaveDatasetResponse.newBuilder().build());
+                    responseObserver.onCompleted();
+                }
             });
             add(new AuthServiceGrpc.AuthServiceImplBase() {
                 @Override
@@ -131,5 +140,18 @@ public class DatasetMetaTest {
     void testThatGetReturns400WhenOperationIsMissing() {
         String actualBody = testClient.get("/dataset-meta?name=a-name&userId=aUser").expect400BadRequest().body();
         assertThat(actualBody).isEqualTo("Missing required query parameter 'operation'");
+    }
+
+    @Test
+    void thatPutWorks() {
+        Dataset ds = Dataset.newBuilder()
+                .setId(DatasetId.newBuilder().setId("an_id").build())
+                .setValuation(Dataset.Valuation.SHIELDED)
+                .setState(Dataset.DatasetState.PRODUCT)
+                .setPseudoConfig("config")
+                .addLocations("f")
+                .build();
+        ResponseHelper<String> responseHelper = testClient.put("/dataset-meta", ds).expect200Ok();
+        assertThat(responseHelper.response().headers().firstValue("Location").orElseThrow()).isEqualTo("/dataset-meta");
     }
 }

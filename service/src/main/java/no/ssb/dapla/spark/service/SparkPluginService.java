@@ -6,7 +6,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import io.grpc.stub.StreamObserver;
 import io.helidon.common.http.Http;
-import io.helidon.metrics.RegistryFactory;
+import io.helidon.webserver.Handler;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerRequest;
 import io.helidon.webserver.ServerResponse;
@@ -21,14 +21,14 @@ import no.ssb.dapla.catalog.protobuf.GetByIdDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.GetByIdDatasetResponse;
 import no.ssb.dapla.catalog.protobuf.MapNameToIdRequest;
 import no.ssb.dapla.catalog.protobuf.MapNameToIdResponse;
+import no.ssb.dapla.catalog.protobuf.SaveDatasetRequest;
+import no.ssb.dapla.catalog.protobuf.SaveDatasetResponse;
 import no.ssb.dapla.spark.protobuf.DataSet;
 import no.ssb.dapla.spark.protobuf.DataSetRequest;
 import no.ssb.dapla.spark.protobuf.LoadDataSetResponse;
 import no.ssb.dapla.spark.protobuf.SaveDataSetResponse;
 import no.ssb.dapla.spark.protobuf.SparkPluginServiceGrpc;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.eclipse.microprofile.metrics.MetricRegistry;
-import org.eclipse.microprofile.metrics.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,8 +42,6 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
 
     private static final Logger LOG = LoggerFactory.getLogger(SparkPluginService.class);
 
-    private final Timer helloTimer = RegistryFactory.getInstance().getRegistry(MetricRegistry.Type.APPLICATION).timer("accessTimer");
-
     final CatalogServiceFutureStub catalogService;
 
     final AuthServiceFutureStub authService;
@@ -56,6 +54,27 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
     @Override
     public void update(Routing.Rules rules) {
         rules.get("/", this::getDatasetMeta);
+        rules.put("/", Handler.create(Dataset.class, this::createDatasetMeta));
+    }
+
+    void createDatasetMeta(ServerRequest request, ServerResponse response, Dataset dataset) {
+        ListenableFuture<SaveDatasetResponse> saveFuture = catalogService.save(SaveDatasetRequest.newBuilder()
+                .setDataset(dataset)
+                .build());
+
+        Futures.addCallback(saveFuture, new FutureCallback<>() {
+            @Override
+            public void onSuccess(@Nullable SaveDatasetResponse result) {
+                response.headers().add("Location", "/dataset-meta");
+                response.status(Http.Status.OK_200).send();
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                LOG.error("Failed to create dataset meta", t);
+                response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
+            }
+        }, MoreExecutors.directExecutor());
     }
 
     void getDatasetMeta(ServerRequest request, ServerResponse response) {
