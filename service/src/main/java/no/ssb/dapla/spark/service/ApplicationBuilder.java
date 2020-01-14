@@ -17,10 +17,14 @@ import static io.helidon.config.ConfigSources.classpath;
 import static io.helidon.config.ConfigSources.file;
 
 public class ApplicationBuilder implements HelidonApplicationBuilder {
+    Config config;
     ManagedChannel globalGrpcClientChannel;
 
     @Override
     public <T> HelidonApplicationBuilder override(Class<T> clazz, T instance) {
+        if (Config.class.isAssignableFrom(clazz)) {
+            config = (Config) instance;
+        }
         if (ManagedChannel.class.isAssignableFrom(clazz)) {
             globalGrpcClientChannel = (ManagedChannel) instance;
         }
@@ -29,15 +33,17 @@ public class ApplicationBuilder implements HelidonApplicationBuilder {
 
     @Override
     public HelidonApplication build() {
-        List<Supplier<ConfigSource>> configSourceSupplierList = new LinkedList<>();
-        String overrideFile = System.getenv("HELIDON_CONFIG_FILE");
-        if (overrideFile != null) {
-            configSourceSupplierList.add(file(overrideFile).optional());
-        }
-        configSourceSupplierList.add(file("conf/application.yaml").optional());
-        configSourceSupplierList.add(classpath("application.yaml"));
+        if (config == null) {
+            List<Supplier<ConfigSource>> configSourceSupplierList = new LinkedList<>();
+            String overrideFile = System.getenv("HELIDON_CONFIG_FILE");
+            if (overrideFile != null) {
+                configSourceSupplierList.add(file(overrideFile).optional());
+            }
+            configSourceSupplierList.add(file("conf/application.yaml").optional());
+            configSourceSupplierList.add(classpath("application.yaml"));
 
-        Config config = Config.builder().sources(configSourceSupplierList).build();
+            config = Config.builder().sources(configSourceSupplierList).build();
+        }
 
         CatalogServiceGrpc.CatalogServiceFutureStub catalogService;
         AuthServiceGrpc.AuthServiceFutureStub authService;
