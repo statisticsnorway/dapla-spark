@@ -3,7 +3,7 @@ webserver:
   host: "0.0.0.0"
 
 grpcserver:
-  port: 1408
+  port: 1407
 
 health:
   readiness:

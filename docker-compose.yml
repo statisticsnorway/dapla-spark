@@ -1,0 +1,13 @@
+version: '3.7'
+
+services:
+
+  bigtable:
+    image: statisticsnorway/bigtable-emulator
+
+  catalog:
+    image: dapla-catalog:dev
+    ports:
+    - 41408:1408
+    environment:
+      BIGTABLE_HOST: bigtable
