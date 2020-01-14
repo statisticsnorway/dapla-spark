@@ -7,8 +7,10 @@ import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceImplBase;
 import no.ssb.dapla.catalog.protobuf.Dataset;
 import no.ssb.dapla.catalog.protobuf.DatasetId;
-import no.ssb.dapla.catalog.protobuf.GetByNameDatasetRequest;
-import no.ssb.dapla.catalog.protobuf.GetByNameDatasetResponse;
+import no.ssb.dapla.catalog.protobuf.GetByIdDatasetRequest;
+import no.ssb.dapla.catalog.protobuf.GetByIdDatasetResponse;
+import no.ssb.dapla.catalog.protobuf.MapNameToIdRequest;
+import no.ssb.dapla.catalog.protobuf.MapNameToIdResponse;
 import no.ssb.testing.helidon.GrpcMockRegistry;
 import no.ssb.testing.helidon.GrpcMockRegistryConfig;
 import no.ssb.testing.helidon.IntegrationTestExtension;
@@ -32,9 +34,13 @@ public class DatasetMetaTest {
 
     private static final Map<String, Dataset> CATALOG = new HashMap<>();
 
+    private static final Map<String, String> CATALOG_NAME_INDEX = new HashMap<>();
+
     static {
+        CATALOG_NAME_INDEX.put("a-dataset", "123");
+
         CATALOG.put(
-                "a-dataset",
+                "123",
                 Dataset.newBuilder()
                         .setState(Dataset.DatasetState.OUTPUT)
                         .setValuation(Dataset.Valuation.OPEN)
@@ -49,20 +55,31 @@ public class DatasetMetaTest {
         );
     }
 
-    private static final Set<String> ACCESS = Set.of("123");
+    private static final Set<String> ACCESS = Set.of("a-user");
 
     public static class DatasetMetaTestGrpcMockRegistry extends GrpcMockRegistry {
         public DatasetMetaTestGrpcMockRegistry() {
             add(new CatalogServiceImplBase() {
                 @Override
-                public void getByName(GetByNameDatasetRequest request, StreamObserver<GetByNameDatasetResponse> responseObserver) {
-                    GetByNameDatasetResponse.Builder responseBuilder = GetByNameDatasetResponse.newBuilder();
+                public void mapNameToId(MapNameToIdRequest request, StreamObserver<MapNameToIdResponse> responseObserver) {
+                    MapNameToIdResponse.Builder responseBuilder = MapNameToIdResponse.newBuilder();
 
-                    Dataset dataset = CATALOG.get(request.getNameList().asByteStringList().get(0).toStringUtf8());
+                    String id = CATALOG_NAME_INDEX.get(request.getName(0));
+                    if (id != null) {
+                        responseBuilder.setId(id);
+                    }
+                    responseObserver.onNext(responseBuilder.build());
+                    responseObserver.onCompleted();
+                }
+
+                @Override
+                public void getById(GetByIdDatasetRequest request, StreamObserver<GetByIdDatasetResponse> responseObserver) {
+                    GetByIdDatasetResponse.Builder responseBuilder = GetByIdDatasetResponse.newBuilder();
+
+                    Dataset dataset = CATALOG.get(request.getId());
                     if (dataset != null) {
                         responseBuilder.setDataset(dataset);
                     }
-
                     responseObserver.onNext(responseBuilder.build());
                     responseObserver.onCompleted();
                 }
@@ -85,21 +102,34 @@ public class DatasetMetaTest {
 
     @Test
     void thatGetWorksWhenUserHasAccess() {
-        assertThat(testClient.get("/dataset-meta?name=a-dataset&operation=READ", Dataset.class).expect200Ok().body()).isEqualTo(CATALOG.get("a-dataset"));
+        assertThat(testClient.get("/dataset-meta?name=a-dataset&operation=READ&userId=a-user", Dataset.class).expect200Ok().body()).isEqualTo(CATALOG.get("123"));
+    }
+
+    @Test
+    void thatGetWorksWhenUserDoesntHaveAccess() {
+        testClient.get("/dataset-meta?name=a-dataset&operation=DELETE&userId=mr-no-access").expect403Forbidden();
     }
 
     @Test
     void thatGetReturns404WhenNoDatasetIsFound() {
-        testClient.get("/dataset-meta?name=does-not-exist&operation=READ").expect404NotFound();
+        testClient.get("/dataset-meta?name=does-not-exist&operation=READ&userId=aUser").expect404NotFound();
+    }
+
+    @Test
+    void thatGetReturns400WhenUserIdIsMissing() {
+        String actualBody = testClient.get("/dataset-meta?name=a-dataset&operation=READ").expect400BadRequest().body();
+        assertThat(actualBody).isEqualTo("Missing required query parameter 'userId'");
     }
 
     @Test
     void thatGetReturns400WhenNameIsMissing() {
-        assertThat(testClient.get("/dataset-meta?operation=READ").expect400BadRequest().body()).isEqualTo("Expected 'name'");
+        String actualBody = testClient.get("/dataset-meta?operation=READ&userId=aUser").expect400BadRequest().body();
+        assertThat(actualBody).isEqualTo("Missing required query parameter 'name'");
     }
 
     @Test
     void testThatGetReturns400WhenOperationIsMissing() {
-        assertThat(testClient.get("/dataset-meta?name=a-name").expect400BadRequest().body()).isEqualTo("Expected 'operation'");
+        String actualBody = testClient.get("/dataset-meta?name=a-name&userId=aUser").expect400BadRequest().body();
+        assertThat(actualBody).isEqualTo("Missing required query parameter 'operation'");
     }
 }

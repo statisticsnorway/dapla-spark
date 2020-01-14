@@ -17,8 +17,10 @@ import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceFutureStub;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceFutureStub;
 import no.ssb.dapla.catalog.protobuf.Dataset;
 import no.ssb.dapla.catalog.protobuf.DatasetId;
-import no.ssb.dapla.catalog.protobuf.GetByNameDatasetRequest;
-import no.ssb.dapla.catalog.protobuf.GetByNameDatasetResponse;
+import no.ssb.dapla.catalog.protobuf.GetByIdDatasetRequest;
+import no.ssb.dapla.catalog.protobuf.GetByIdDatasetResponse;
+import no.ssb.dapla.catalog.protobuf.MapNameToIdRequest;
+import no.ssb.dapla.catalog.protobuf.MapNameToIdResponse;
 import no.ssb.dapla.spark.protobuf.DataSet;
 import no.ssb.dapla.spark.protobuf.DataSetRequest;
 import no.ssb.dapla.spark.protobuf.LoadDataSetResponse;
@@ -31,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import static java.util.Arrays.asList;
 import static java.util.Optional.ofNullable;
@@ -56,66 +59,96 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
     }
 
     void getDatasetMeta(ServerRequest request, ServerResponse response) {
+        Optional<String> maybeUserId = request.queryParams().first("userId");
+        if (maybeUserId.isEmpty()) {
+            response.status(Http.Status.BAD_REQUEST_400).send("Missing required query parameter 'userId'");
+            return;
+        }
+        String userId = maybeUserId.get();
 
         Optional<String> maybeOperation = request.queryParams().first("operation");
         if (maybeOperation.isEmpty()) {
-            response.status(Http.Status.BAD_REQUEST_400).send("Expected 'operation'");
+            response.status(Http.Status.BAD_REQUEST_400).send("Missing required query parameter 'operation'");
             return;
         }
         String operation = maybeOperation.get();
 
         Optional<String> maybeName = request.queryParams().first("name");
         if (maybeName.isEmpty()) {
-            response.status(Http.Status.BAD_REQUEST_400).send("Expected 'name'");
+            response.status(Http.Status.BAD_REQUEST_400).send("Missing required query parameter 'name'");
             return;
         }
         String name = maybeName.get();
 
-        GetByNameDatasetRequest getDatasetRequest = GetByNameDatasetRequest.newBuilder()
+        String proposedId = request.queryParams().first("proposedId").orElseGet(() -> UUID.randomUUID().toString());
+
+        MapNameToIdRequest mapNameToIdRequest = MapNameToIdRequest.newBuilder()
+                .setProposedId(proposedId)
                 .addAllName(asList(name.split("/")))
                 .build();
 
-        ListenableFuture<GetByNameDatasetResponse> datasetFuture = catalogService.getByName(getDatasetRequest);
+        ListenableFuture<MapNameToIdResponse> idFuture = catalogService.mapNameToId(mapNameToIdRequest);
 
-        Futures.addCallback(datasetFuture, new FutureCallback<>() {
+        Futures.addCallback(idFuture, new FutureCallback<>() {
             @Override
-            public void onSuccess(@Nullable GetByNameDatasetResponse datasetResponse) {
-                if (ofNullable(datasetResponse)
-                        .map(GetByNameDatasetResponse::getDataset)
-                        .map(Dataset::getId)
-                        .map(DatasetId::getId)
-                        .orElse("")
-                        .isBlank()) {
+            public void onSuccess(@Nullable MapNameToIdResponse result) {
+                if (ofNullable(result).map(MapNameToIdResponse::getId).orElse("").isBlank()) {
                     response.status(Http.Status.NOT_FOUND_404).send();
                     return;
                 }
 
-                Dataset dataset = datasetResponse.getDataset();
+                ListenableFuture<GetByIdDatasetResponse> datasetFuture = catalogService.getById(GetByIdDatasetRequest.newBuilder()
+                        .setId(result.getId())
+                        .build()
+                );
 
-                AccessCheckRequest checkRequest = AccessCheckRequest.newBuilder()
-                        .setUserId("123") // TODO: Extract this from incoming request
-                        .setNamespace(name)
-                        .setPrivilege(operation)
-                        .setValuation(dataset.getValuation().name())
-                        .setState(dataset.getState().name())
-                        .build();
-
-                ListenableFuture<AccessCheckResponse> hasAccessListenableFuture = authService.hasAccess(checkRequest);
-
-                Futures.addCallback(hasAccessListenableFuture, new FutureCallback<>() {
-
+                Futures.addCallback(datasetFuture, new FutureCallback<>() {
                     @Override
-                    public void onSuccess(@Nullable AccessCheckResponse result) {
-                        if (result != null && result.getAllowed()) {
-                            response.status(Http.Status.OK_200).send(dataset);
+                    public void onSuccess(@Nullable GetByIdDatasetResponse result) {
+                        if (ofNullable(result)
+                                .map(GetByIdDatasetResponse::getDataset)
+                                .map(Dataset::getId)
+                                .map(DatasetId::getId)
+                                .orElse("")
+                                .isBlank()) {
+                            response.status(Http.Status.NOT_FOUND_404).send();
                             return;
                         }
-                        response.status(Http.Status.FORBIDDEN_403).send();
+
+                        Dataset dataset = result.getDataset();
+
+                        AccessCheckRequest checkRequest = AccessCheckRequest.newBuilder()
+                                .setUserId(userId)
+                                .setNamespace(name)
+                                .setPrivilege(operation)
+                                .setValuation(dataset.getValuation().name())
+                                .setState(dataset.getState().name())
+                                .build();
+
+                        ListenableFuture<AccessCheckResponse> hasAccessListenableFuture = authService.hasAccess(checkRequest);
+
+                        Futures.addCallback(hasAccessListenableFuture, new FutureCallback<>() {
+
+                            @Override
+                            public void onSuccess(@Nullable AccessCheckResponse result) {
+                                if (result != null && result.getAllowed()) {
+                                    response.status(Http.Status.OK_200).send(dataset);
+                                    return;
+                                }
+                                response.status(Http.Status.FORBIDDEN_403).send();
+                            }
+
+                            @Override
+                            public void onFailure(Throwable t) {
+                                LOG.error("Failed to do access check", t);
+                                response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
+                            }
+                        }, MoreExecutors.directExecutor());
                     }
 
                     @Override
                     public void onFailure(Throwable t) {
-                        LOG.error("Failed to get dataset meta", t);
+                        LOG.error("Failed to acquire dataset", t);
                         response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
                     }
                 }, MoreExecutors.directExecutor());
@@ -123,7 +156,7 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
 
             @Override
             public void onFailure(Throwable t) {
-                LOG.error("Failed to get dataset meta", t);
+                LOG.error("Failed to get dataset id", t);
                 response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
             }
         }, MoreExecutors.directExecutor());
