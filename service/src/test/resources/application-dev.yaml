@@ -1,3 +1,7 @@
 catalog-service:
   host: localhost
-  port: 41408
+  port: 18072
+
+auth-service:
+  host: localhost
+  port: 18082

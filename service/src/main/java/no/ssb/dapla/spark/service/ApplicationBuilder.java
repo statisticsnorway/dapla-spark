@@ -58,7 +58,11 @@ public class ApplicationBuilder implements HelidonApplicationBuilder {
             catalogService = CatalogServiceGrpc.newFutureStub(catalogChannel);
 
             ManagedChannel datasetAccessChannel = ManagedChannelBuilder
-                    .forAddress("localhost", 7070)
+                    .forAddress(
+                            config.get("auth-service").get("host").asString().orElse("localhost"),
+                            config.get("auth-service").get("port").asInt().orElse(7070)
+                    )
+
                     .usePlaintext()
                     .build();
             authService = AuthServiceGrpc.newFutureStub(datasetAccessChannel);

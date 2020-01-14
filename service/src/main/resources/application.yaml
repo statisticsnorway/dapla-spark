@@ -5,6 +5,14 @@ webserver:
 grpcserver:
   port: 1407
 
+catalog-service:
+  host: dapla-catalog-service
+  port: 1408
+
+auth-service:
+  host: dapla-auth-dataset-service
+  port: 7070
+
 health:
   readiness:
     idle-timeout: 2000
