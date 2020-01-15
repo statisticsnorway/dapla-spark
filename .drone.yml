@@ -41,7 +41,7 @@ steps:
   - name: publish-maven
     image: maven:3-jdk-11-slim
     commands:
-      - mvn clean deploy -f pom-all.xml -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository -DskipTests=true --batch-mode --global-settings settings.xml
+      - mvn clean deploy -pl protobuf -f pom-all.xml -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository -DskipTests=true --batch-mode --global-settings settings.xml
     environment:
       MAVEN_OPTS: -Djdk.tls.client.protocols="TLSv1.2"
     when:
