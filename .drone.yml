@@ -32,6 +32,8 @@ steps:
     image: maven:3-jdk-11-slim
     commands:
       - mvn clean verify -U -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository --no-transfer-progress --batch-mode --global-settings settings.xml
+    environment:
+      MAVEN_OPTS: -Djdk.tls.client.protocols="TLSv1.2"
     depends_on:
       - authenticate
       - restore-cache
