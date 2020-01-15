@@ -31,7 +31,7 @@ steps:
   - name: build
     image: maven:3-jdk-11-slim
     commands:
-      - mvn clean verify -U -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository --no-transfer-progress --batch-mode --global-settings settings.xml
+      - mvn clean verify -f pom-all.xml -U -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository --no-transfer-progress --batch-mode --global-settings settings.xml
     environment:
       MAVEN_OPTS: -Djdk.tls.client.protocols="TLSv1.2"
     depends_on:
@@ -41,7 +41,7 @@ steps:
   - name: publish-maven
     image: maven:3-jdk-11-slim
     commands:
-      - mvn clean deploy -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository -DskipTests=true --batch-mode --global-settings settings.xml
+      - mvn clean deploy -f pom-all.xml -P ssb-bip -Dmaven.repo.local=/drone/src/.m2/repository -DskipTests=true --batch-mode --global-settings settings.xml
     environment:
       MAVEN_OPTS: -Djdk.tls.client.protocols="TLSv1.2"
     when:

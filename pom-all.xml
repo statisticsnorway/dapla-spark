@@ -10,6 +10,7 @@
     <name>${project.artifactId}</name>
 
     <modules>
+        <module>protobuf</module>
         <module>service</module>
     </modules>
 
