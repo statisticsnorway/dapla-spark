@@ -42,14 +42,6 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>io.helidon.applications</groupId>
-                <artifactId>helidon-se</artifactId>
-                <version>1.4.0</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-
-            <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>jul-to-slf4j</artifactId>
                 <version>1.7.29</version>
