@@ -1,12 +1,16 @@
 package no.ssb.dapla.spark.service;
 
+import com.google.common.base.Strings;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import io.grpc.CallCredentials;
+import io.grpc.Metadata;
 import io.grpc.stub.StreamObserver;
 import io.helidon.common.http.Http;
 import io.helidon.webserver.Handler;
+import io.helidon.webserver.RequestHeaders;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerRequest;
 import io.helidon.webserver.ServerResponse;
@@ -34,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 
 import static java.util.Arrays.asList;
 import static java.util.Optional.ofNullable;
@@ -54,18 +59,20 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
         private String operation;
         private CatalogServiceFutureStub catalogService;
         private AuthServiceFutureStub authService;
+        private CallCredentials authorizationBearer;
 
-        MapNameToDataset(ServerResponse response, String userId, String name, String operation, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
+        MapNameToDataset(ServerResponse response, String userId, String name, String operation, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
             this.response = response;
             this.userId = userId;
             this.name = name;
             this.operation = operation;
             this.catalogService = catalogService;
             this.authService = authService;
+            this.authorizationBearer = authorizationBearer;
         }
 
-        static MapNameToDataset create(ServerResponse response, String userId, String name, String operation, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
-            return new MapNameToDataset(response, userId, name, operation, catalogService, authService);
+        static MapNameToDataset create(ServerResponse response, String userId, String name, String operation, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
+            return new MapNameToDataset(response, userId, name, operation, catalogService, authService, authorizationBearer);
         }
 
         @Override
@@ -75,12 +82,12 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
                 return;
             }
 
-            ListenableFuture<GetByIdDatasetResponse> datasetFuture = catalogService.getById(GetByIdDatasetRequest.newBuilder()
+            ListenableFuture<GetByIdDatasetResponse> datasetFuture = catalogService.withCallCredentials(authorizationBearer).getById(GetByIdDatasetRequest.newBuilder()
                     .setId(result.getId())
                     .build()
             );
 
-            Futures.addCallback(datasetFuture, GetDataset.create(response, userId, name, operation, authService), MoreExecutors.directExecutor());
+            Futures.addCallback(datasetFuture, GetDataset.create(response, userId, name, operation, authService, authorizationBearer), MoreExecutors.directExecutor());
         }
 
         @Override
@@ -97,17 +104,19 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
         private String name;
         private String operation;
         private AuthServiceFutureStub authService;
+        private CallCredentials authorizationBearer;
 
-        GetDataset(ServerResponse response, String userId, String name, String operation, AuthServiceFutureStub authService) {
+        GetDataset(ServerResponse response, String userId, String name, String operation, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
             this.response = response;
             this.userId = userId;
             this.name = name;
             this.operation = operation;
             this.authService = authService;
+            this.authorizationBearer = authorizationBearer;
         }
 
-        static GetDataset create(ServerResponse response, String userId, String name, String operation, AuthServiceFutureStub authService) {
-            return new GetDataset(response, userId, name, operation, authService);
+        static GetDataset create(ServerResponse response, String userId, String name, String operation, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
+            return new GetDataset(response, userId, name, operation, authService, authorizationBearer);
         }
 
         @Override
@@ -132,7 +141,7 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
                     .setState(dataset.getState().name())
                     .build();
 
-            ListenableFuture<AccessCheckResponse> hasAccessListenableFuture = authService.hasAccess(checkRequest);
+            ListenableFuture<AccessCheckResponse> hasAccessListenableFuture = authService.withCallCredentials(authorizationBearer).hasAccess(checkRequest);
 
             Futures.addCallback(hasAccessListenableFuture, DoAccessCheck.create(response, dataset), MoreExecutors.directExecutor());
         }
@@ -186,7 +195,7 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
     }
 
     void createDatasetMeta(ServerRequest request, ServerResponse response, Dataset dataset) {
-        ListenableFuture<SaveDatasetResponse> saveFuture = catalogService.save(SaveDatasetRequest.newBuilder()
+        ListenableFuture<SaveDatasetResponse> saveFuture = catalogService.withCallCredentials(AuthorizationBearer.from(request.headers())).save(SaveDatasetRequest.newBuilder()
                 .setDataset(dataset)
                 .build());
 
@@ -227,6 +236,8 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
         }
         String name = maybeName.get();
 
+        AuthorizationBearer authorizationBearer = AuthorizationBearer.from(request.headers());
+
         String proposedId = request.queryParams().first("proposedId").orElseGet(() -> UUID.randomUUID().toString());
 
         MapNameToIdRequest mapNameToIdRequest = MapNameToIdRequest.newBuilder()
@@ -234,9 +245,39 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
                 .addAllName(asList(name.split("/")))
                 .build();
 
-        ListenableFuture<MapNameToIdResponse> idFuture = catalogService.mapNameToId(mapNameToIdRequest);
+        ListenableFuture<MapNameToIdResponse> idFuture = catalogService.withCallCredentials(authorizationBearer).mapNameToId(mapNameToIdRequest);
 
-        Futures.addCallback(idFuture, MapNameToDataset.create(response, userId, name, operation, catalogService, authService), MoreExecutors.directExecutor());
+        Futures.addCallback(idFuture, MapNameToDataset.create(response, userId, name, operation, catalogService, authService, authorizationBearer), MoreExecutors.directExecutor());
+    }
+
+    static class AuthorizationBearer extends CallCredentials {
+
+        private String token;
+
+        AuthorizationBearer(String token) {
+            this.token = token;
+        }
+
+        static AuthorizationBearer from(RequestHeaders headers) {
+            String token = headers.first("Authorization").map(s -> {
+                if (Strings.isNullOrEmpty(s) || !s.startsWith("Bearer ")) {
+                    return "";
+                }
+                return s.split(" ")[1];
+            }).orElse("");
+            return new AuthorizationBearer(token);
+        }
+
+        @Override
+        public void applyRequestMetadata(RequestInfo requestInfo, Executor appExecutor, MetadataApplier applier) {
+            Metadata metadata = new Metadata();
+            metadata.put(Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER), String.format("Bearer %s", token));
+            appExecutor.execute(() -> applier.apply(metadata));
+        }
+
+        @Override
+        public void thisUsesUnstableApi() {
+        }
     }
 
     @Override

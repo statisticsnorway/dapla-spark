@@ -22,7 +22,7 @@ class SparkPluginServiceTest {
 
 //    @Test
     void test() {
-        String body = testClient.get("/dataset-meta?name=skatt2019.konto&operation=READ&userId=11").expect200Ok().body();
+        String body = testClient.get("/dataset-meta?name=skatt2019.konto&operation=READ&userId=11", "Authorization", "Bearer a_token").expect200Ok().body();
         System.out.println(body);
     }
 }
