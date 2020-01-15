@@ -46,6 +46,134 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
 
     final AuthServiceFutureStub authService;
 
+    static class MapNameToDataset implements FutureCallback<MapNameToIdResponse> {
+
+        private ServerResponse response;
+        private String userId;
+        private String name;
+        private String operation;
+        private CatalogServiceFutureStub catalogService;
+        private AuthServiceFutureStub authService;
+
+        MapNameToDataset(ServerResponse response, String userId, String name, String operation, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
+            this.response = response;
+            this.userId = userId;
+            this.name = name;
+            this.operation = operation;
+            this.catalogService = catalogService;
+            this.authService = authService;
+        }
+
+        static MapNameToDataset create(ServerResponse response, String userId, String name, String operation, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
+            return new MapNameToDataset(response, userId, name, operation, catalogService, authService);
+        }
+
+        @Override
+        public void onSuccess(@Nullable MapNameToIdResponse result) {
+            if (ofNullable(result).map(MapNameToIdResponse::getId).orElse("").isBlank()) {
+                response.status(Http.Status.NOT_FOUND_404).send();
+                return;
+            }
+
+            ListenableFuture<GetByIdDatasetResponse> datasetFuture = catalogService.getById(GetByIdDatasetRequest.newBuilder()
+                    .setId(result.getId())
+                    .build()
+            );
+
+            Futures.addCallback(datasetFuture, GetDataset.create(response, userId, name, operation, authService), MoreExecutors.directExecutor());
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            LOG.error("Failed to get dataset id", t);
+            response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
+        }
+    }
+
+    static class GetDataset implements FutureCallback<GetByIdDatasetResponse> {
+
+        private ServerResponse response;
+        private String userId;
+        private String name;
+        private String operation;
+        private AuthServiceFutureStub authService;
+
+        GetDataset(ServerResponse response, String userId, String name, String operation, AuthServiceFutureStub authService) {
+            this.response = response;
+            this.userId = userId;
+            this.name = name;
+            this.operation = operation;
+            this.authService = authService;
+        }
+
+        static GetDataset create(ServerResponse response, String userId, String name, String operation, AuthServiceFutureStub authService) {
+            return new GetDataset(response, userId, name, operation, authService);
+        }
+
+        @Override
+        public void onSuccess(@Nullable GetByIdDatasetResponse result) {
+            if (ofNullable(result)
+                    .map(GetByIdDatasetResponse::getDataset)
+                    .map(Dataset::getId)
+                    .map(DatasetId::getId)
+                    .orElse("")
+                    .isBlank()) {
+                response.status(Http.Status.NOT_FOUND_404).send();
+                return;
+            }
+
+            Dataset dataset = result.getDataset();
+
+            AccessCheckRequest checkRequest = AccessCheckRequest.newBuilder()
+                    .setUserId(userId)
+                    .setNamespace(name)
+                    .setPrivilege(operation)
+                    .setValuation(dataset.getValuation().name())
+                    .setState(dataset.getState().name())
+                    .build();
+
+            ListenableFuture<AccessCheckResponse> hasAccessListenableFuture = authService.hasAccess(checkRequest);
+
+            Futures.addCallback(hasAccessListenableFuture, DoAccessCheck.create(response, dataset), MoreExecutors.directExecutor());
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            LOG.error("Failed to acquire dataset", t);
+            response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
+        }
+    }
+
+    static class DoAccessCheck implements FutureCallback<AccessCheckResponse> {
+
+        private ServerResponse response;
+        private Dataset dataset;
+
+        DoAccessCheck(ServerResponse response, Dataset dataset) {
+            this.response = response;
+            this.dataset = dataset;
+        }
+
+        static DoAccessCheck create(ServerResponse response, Dataset dataset) {
+            return new DoAccessCheck(response, dataset);
+        }
+
+        @Override
+        public void onSuccess(@Nullable AccessCheckResponse result) {
+            if (result != null && result.getAllowed()) {
+                response.status(Http.Status.OK_200).send(dataset);
+                return;
+            }
+            response.status(Http.Status.FORBIDDEN_403).send();
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            LOG.error("Failed to do access check", t);
+            response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
+        }
+    }
+
     public SparkPluginService(CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
         this.catalogService = catalogService;
         this.authService = authService;
@@ -108,77 +236,7 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
 
         ListenableFuture<MapNameToIdResponse> idFuture = catalogService.mapNameToId(mapNameToIdRequest);
 
-        Futures.addCallback(idFuture, new FutureCallback<>() {
-            @Override
-            public void onSuccess(@Nullable MapNameToIdResponse result) {
-                if (ofNullable(result).map(MapNameToIdResponse::getId).orElse("").isBlank()) {
-                    response.status(Http.Status.NOT_FOUND_404).send();
-                    return;
-                }
-
-                ListenableFuture<GetByIdDatasetResponse> datasetFuture = catalogService.getById(GetByIdDatasetRequest.newBuilder()
-                        .setId(result.getId())
-                        .build()
-                );
-
-                Futures.addCallback(datasetFuture, new FutureCallback<>() {
-                    @Override
-                    public void onSuccess(@Nullable GetByIdDatasetResponse result) {
-                        if (ofNullable(result)
-                                .map(GetByIdDatasetResponse::getDataset)
-                                .map(Dataset::getId)
-                                .map(DatasetId::getId)
-                                .orElse("")
-                                .isBlank()) {
-                            response.status(Http.Status.NOT_FOUND_404).send();
-                            return;
-                        }
-
-                        Dataset dataset = result.getDataset();
-
-                        AccessCheckRequest checkRequest = AccessCheckRequest.newBuilder()
-                                .setUserId(userId)
-                                .setNamespace(name)
-                                .setPrivilege(operation)
-                                .setValuation(dataset.getValuation().name())
-                                .setState(dataset.getState().name())
-                                .build();
-
-                        ListenableFuture<AccessCheckResponse> hasAccessListenableFuture = authService.hasAccess(checkRequest);
-
-                        Futures.addCallback(hasAccessListenableFuture, new FutureCallback<>() {
-
-                            @Override
-                            public void onSuccess(@Nullable AccessCheckResponse result) {
-                                if (result != null && result.getAllowed()) {
-                                    response.status(Http.Status.OK_200).send(dataset);
-                                    return;
-                                }
-                                response.status(Http.Status.FORBIDDEN_403).send();
-                            }
-
-                            @Override
-                            public void onFailure(Throwable t) {
-                                LOG.error("Failed to do access check", t);
-                                response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
-                            }
-                        }, MoreExecutors.directExecutor());
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        LOG.error("Failed to acquire dataset", t);
-                        response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
-                    }
-                }, MoreExecutors.directExecutor());
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-                LOG.error("Failed to get dataset id", t);
-                response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
-            }
-        }, MoreExecutors.directExecutor());
+        Futures.addCallback(idFuture, MapNameToDataset.create(response, userId, name, operation, catalogService, authService), MoreExecutors.directExecutor());
     }
 
     @Override
