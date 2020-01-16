@@ -18,6 +18,7 @@ import io.helidon.webserver.Service;
 import no.ssb.dapla.auth.dataset.protobuf.AccessCheckRequest;
 import no.ssb.dapla.auth.dataset.protobuf.AccessCheckResponse;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceFutureStub;
+import no.ssb.dapla.auth.dataset.protobuf.Role;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceFutureStub;
 import no.ssb.dapla.catalog.protobuf.Dataset;
 import no.ssb.dapla.catalog.protobuf.DatasetId;
@@ -37,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 
@@ -56,23 +58,27 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
         private ServerResponse response;
         private String userId;
         private String name;
-        private String operation;
+        private Role.Privilege operation;
+        private Role.Valuation intendedValuation;
+        private Role.DatasetState intendedState;
         private CatalogServiceFutureStub catalogService;
         private AuthServiceFutureStub authService;
         private CallCredentials authorizationBearer;
 
-        MapNameToDataset(ServerResponse response, String userId, String name, String operation, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
+        MapNameToDataset(ServerResponse response, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
             this.response = response;
             this.userId = userId;
             this.name = name;
             this.operation = operation;
+            this.intendedValuation = intendedValuation;
+            this.intendedState = intendedState;
             this.catalogService = catalogService;
             this.authService = authService;
             this.authorizationBearer = authorizationBearer;
         }
 
-        static MapNameToDataset create(ServerResponse response, String userId, String name, String operation, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
-            return new MapNameToDataset(response, userId, name, operation, catalogService, authService, authorizationBearer);
+        static MapNameToDataset create(ServerResponse response, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
+            return new MapNameToDataset(response, userId, name, operation, intendedValuation, intendedState, catalogService, authService, authorizationBearer);
         }
 
         @Override
@@ -87,7 +93,7 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
                     .build()
             );
 
-            Futures.addCallback(datasetFuture, GetDataset.create(response, userId, name, operation, authService, authorizationBearer), MoreExecutors.directExecutor());
+            Futures.addCallback(datasetFuture, GetDataset.create(response, result.getId(), userId, name, operation, intendedValuation, intendedState, authService, authorizationBearer), MoreExecutors.directExecutor());
         }
 
         @Override
@@ -99,46 +105,60 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
 
     static class GetDataset implements FutureCallback<GetByIdDatasetResponse> {
 
+        private String mappedId;
         private ServerResponse response;
         private String userId;
         private String name;
-        private String operation;
+        private Role.Privilege operation;
+        private Role.Valuation intendedValuation;
+        private Role.DatasetState intendedState;
         private AuthServiceFutureStub authService;
         private CallCredentials authorizationBearer;
 
-        GetDataset(ServerResponse response, String userId, String name, String operation, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
+        GetDataset(ServerResponse response, String mappedId, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
+            this.mappedId = mappedId;
             this.response = response;
             this.userId = userId;
             this.name = name;
             this.operation = operation;
+            this.intendedValuation = intendedValuation;
+            this.intendedState = intendedState;
             this.authService = authService;
             this.authorizationBearer = authorizationBearer;
         }
 
-        static GetDataset create(ServerResponse response, String userId, String name, String operation, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
-            return new GetDataset(response, userId, name, operation, authService, authorizationBearer);
+        static GetDataset create(ServerResponse response, String mappedId, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
+            return new GetDataset(response, mappedId, userId, name, operation, intendedValuation, intendedState, authService, authorizationBearer);
         }
 
         @Override
         public void onSuccess(@Nullable GetByIdDatasetResponse result) {
+            Dataset dataset;
             if (ofNullable(result)
                     .map(GetByIdDatasetResponse::getDataset)
                     .map(Dataset::getId)
                     .map(DatasetId::getId)
                     .orElse("")
                     .isBlank()) {
-                response.status(Http.Status.NOT_FOUND_404).send();
-                return;
+
+                if (Set.of(Role.Privilege.READ, Role.Privilege.DELETE).contains(operation)) {
+                    response.status(Http.Status.NOT_FOUND_404).send();
+                    return;
+                }
+
+                dataset = Dataset.newBuilder().setId(DatasetId.newBuilder().setId(mappedId).build()).build();
+            } else {
+                dataset = result.getDataset();
             }
 
-            Dataset dataset = result.getDataset();
+            boolean createOrUpdate = Set.of(Role.Privilege.CREATE, Role.Privilege.UPDATE).contains(operation);
 
             AccessCheckRequest checkRequest = AccessCheckRequest.newBuilder()
                     .setUserId(userId)
                     .setNamespace(name)
-                    .setPrivilege(operation)
-                    .setValuation(dataset.getValuation().name())
-                    .setState(dataset.getState().name())
+                    .setPrivilege(operation.name())
+                    .setValuation(createOrUpdate ? intendedValuation.name() : dataset.getValuation().name())
+                    .setState(createOrUpdate ? intendedState.name() : dataset.getState().name())
                     .build();
 
             ListenableFuture<AccessCheckResponse> hasAccessListenableFuture = authService.withCallCredentials(authorizationBearer).hasAccess(checkRequest);
@@ -227,7 +247,24 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
             response.status(Http.Status.BAD_REQUEST_400).send("Missing required query parameter 'operation'");
             return;
         }
-        String operation = maybeOperation.get();
+        Role.Privilege operation = Role.Privilege.valueOf(maybeOperation.get());
+
+        Role.Valuation intendedValuation = null;
+        Role.DatasetState intendedState = null;
+        if (Set.of(Role.Privilege.CREATE, Role.Privilege.UPDATE).contains(operation)) {
+            Optional<String> maybeValuation = request.queryParams().first("valuation");
+            if (maybeValuation.isEmpty()) {
+                response.status(Http.Status.BAD_REQUEST_400).send("Missing required query parameter 'valuation'");
+                return;
+            }
+            intendedValuation = Role.Valuation.valueOf(maybeValuation.get());
+            Optional<String> maybeState = request.queryParams().first("state");
+            if (maybeState.isEmpty()) {
+                response.status(Http.Status.BAD_REQUEST_400).send("Missing required query parameter 'state'");
+                return;
+            }
+            intendedState = Role.DatasetState.valueOf(maybeState.get());
+        }
 
         Optional<String> maybeName = request.queryParams().first("name");
         if (maybeName.isEmpty()) {
@@ -247,7 +284,7 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
 
         ListenableFuture<MapNameToIdResponse> idFuture = catalogService.withCallCredentials(authorizationBearer).mapNameToId(mapNameToIdRequest);
 
-        Futures.addCallback(idFuture, MapNameToDataset.create(response, userId, name, operation, catalogService, authService, authorizationBearer), MoreExecutors.directExecutor());
+        Futures.addCallback(idFuture, MapNameToDataset.create(response, userId, name, operation, intendedValuation, intendedState, catalogService, authService, authorizationBearer), MoreExecutors.directExecutor());
     }
 
     static class AuthorizationBearer extends CallCredentials {
