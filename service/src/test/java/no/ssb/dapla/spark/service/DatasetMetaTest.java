@@ -41,6 +41,8 @@ public class DatasetMetaTest {
 
     static {
         CATALOG_NAME_INDEX.put("a-dataset", "123");
+        CATALOG_NAME_INDEX.put("skatt2019.konto", "some_id");
+        CATALOG_NAME_INDEX.put("maps_to_no_namespace", "non_existing_dataset");
 
         CATALOG.put(
                 "123",
@@ -53,6 +55,15 @@ public class DatasetMetaTest {
                                 DatasetId.newBuilder()
                                         .setId("123")
                                         .addName("a-dataset")
+                        )
+                        .build()
+        );
+        CATALOG.put(
+                "some_id",
+                Dataset.newBuilder()
+                        .setId(
+                                DatasetId.newBuilder()
+                                        .setId("some_id")
                         )
                         .build()
         );
@@ -109,14 +120,47 @@ public class DatasetMetaTest {
         }
     }
 
+    // CREATE
+    @Test
+    void thatCreateReturns400WhenMissingValuation() {
+        assertThat(testClient.get("/dataset-meta?name=skatt2019.konto&operation=CREATE&userId=someuser").expect400BadRequest().body()).isEqualTo("Missing required query parameter 'valuation'");
+    }
+
+    @Test
+    void thatCreateReturns400WhenMissingState() {
+        assertThat(testClient.get("/dataset-meta?name=skatt2019.konto&operation=CREATE&userId=someuser&valuation=OPEN").expect400BadRequest().body()).isEqualTo("Missing required query parameter 'state'");
+    }
+
+    @Test
+    void thatCreateReturnsDatasetWhenUserIsAllowed() {
+        Dataset expected = Dataset.newBuilder().setId(DatasetId.newBuilder().setId("some_id").build()).build();
+        assertThat(testClient.get("/dataset-meta?name=skatt2019.konto&operation=CREATE&userId=a-user&valuation=OPEN&state=RAW&proposedId=some_id", Dataset.class).expect200Ok().body()).isEqualTo(expected);
+    }
+
+    @Test
+    void thatCreateReturns403WhenUserIsNotAllowed() {
+        testClient.get("/dataset-meta?name=skatt2019.konto&operation=CREATE&userId=no_access&valuation=OPEN&state=RAW&proposedId=some_id").expect403Forbidden();
+    }
+
+    // READ
+    @Test
+    void thatReadReturns404IfDatasetDoesNotExist() {
+        testClient.get("/dataset-meta?name=maps_to_no_namespace&operation=READ&userId=someuser").expect404NotFound();
+    }
+
+    @Test
+    void thatReadReturns403WhenUserIsNotAllowed() {
+        testClient.get("/dataset-meta?name=skatt2019.konto&operation=READ&userId=no-access").expect403Forbidden();
+    }
+
     @Test
     void thatGetWorksWhenUserHasAccess() {
-        assertThat(testClient.get("/dataset-meta?name=a-dataset&operation=READ&userId=a-user", Dataset.class).expect200Ok().body()).isEqualTo(CATALOG.get("123"));
+        assertThat(testClient.get("/dataset-meta?name=skatt2019.konto&operation=READ&userId=a-user", Dataset.class).expect200Ok().body()).isEqualTo(CATALOG.get("some_id"));
     }
 
     @Test
     void thatGetWorksWhenUserDoesntHaveAccess() {
-        testClient.get("/dataset-meta?name=a-dataset&operation=DELETE&userId=mr-no-access").expect403Forbidden();
+        testClient.get("/dataset-meta?name=skatt2019.konto&operation=READ&userId=mr-no-access").expect403Forbidden();
     }
 
     @Test
