@@ -5,6 +5,7 @@ WORKDIR /app
 COPY service/target/libs /app/lib/
 COPY service/target/dapla-spark-service.jar /app/lib/
 
-CMD ["java", "-cp", "/app/lib/*", "no.ssb.dapla.spark.service.Application"]
+CMD ["java", "-p", "/app/lib", "-m", "dapla.spark.service/no.ssb.dapla.spark.service.Application"]
 
 EXPOSE 1408
+EXPOSE 8060
