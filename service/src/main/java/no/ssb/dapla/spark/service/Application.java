@@ -1,12 +1,7 @@
 package no.ssb.dapla.spark.service;
 
 import ch.qos.logback.classic.util.ContextInitializer;
-import io.grpc.LoadBalancerRegistry;
 import io.grpc.ManagedChannel;
-import io.grpc.NameResolverRegistry;
-import io.grpc.internal.DnsNameResolverProvider;
-import io.grpc.internal.PickFirstLoadBalancerProvider;
-import io.grpc.services.internal.HealthCheckingRoundRobinLoadBalancerProvider;
 import io.helidon.config.Config;
 import io.helidon.grpc.server.GrpcRouting;
 import io.helidon.grpc.server.GrpcServer;
@@ -74,8 +69,6 @@ public class Application implements HelidonApplication {
     Application(Config config, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
         put(Config.class, config);
 
-        applyGrpcProvidersWorkaround();
-
         AtomicReference<ReadinessSample> lastReadySample = new AtomicReference<>(new ReadinessSample(false, System.currentTimeMillis()));
 
         // initialize health, including a database connectivity wait-loop
@@ -112,17 +105,6 @@ public class Application implements HelidonApplication {
                         .build()
         );
         put(GrpcServer.class, grpcServer);
-    }
-
-    private void applyGrpcProvidersWorkaround() {
-        // The shaded version of grpc from helidon does not include the service definition for
-        // PickFirstLoadBalancerProvider. This result in LoadBalancerRegistry not being able to
-        // find it. We register them manually here.
-        LoadBalancerRegistry.getDefaultRegistry().register(new PickFirstLoadBalancerProvider());
-        LoadBalancerRegistry.getDefaultRegistry().register(new HealthCheckingRoundRobinLoadBalancerProvider());
-
-        // The same thing happens with the name resolvers.
-        NameResolverRegistry.getDefaultRegistry().register(new DnsNameResolverProvider());
     }
 
     public CompletionStage<Application> start() {
