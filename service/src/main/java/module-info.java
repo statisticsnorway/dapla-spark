@@ -11,7 +11,6 @@ module dapla.spark.service {
     requires com.fasterxml.jackson.core;
     requires io.helidon.webserver;
     requires io.helidon.config;
-    requires io.helidon.media.jackson.server;
     requires java.net.http;
     requires io.helidon.common.reactive;
     requires logback.classic;
@@ -27,9 +26,6 @@ module dapla.spark.service {
     requires com.google.gson; // required by JsonFormat in protobuf-java-util for serialization and deserialization
 
     requires java.annotation;
-    requires com.fasterxml.jackson.module.paramnames;
-    requires com.fasterxml.jackson.datatype.jdk8;
-    requires com.fasterxml.jackson.datatype.jsr310;
     requires com.google.protobuf.util;
     requires com.google.common;
     requires no.ssb.helidon.application;
