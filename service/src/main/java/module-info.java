@@ -10,6 +10,7 @@ module dapla.spark.service {
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
     requires io.helidon.webserver;
+    requires io.helidon.webserver.accesslog;
     requires io.helidon.config;
     requires java.net.http;
     requires io.helidon.common.reactive;

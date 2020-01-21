@@ -9,6 +9,7 @@ import io.helidon.metrics.MetricsSupport;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerConfiguration;
 import io.helidon.webserver.WebServer;
+import io.helidon.webserver.accesslog.AccessLogSupport;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceFutureStub;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceFutureStub;
 import no.ssb.dapla.spark.service.health.Health;
@@ -67,6 +68,7 @@ public class Application extends DefaultHelidonApplication {
 
         // routing
         Routing routing = Routing.builder()
+                .register(AccessLogSupport.create(config.get("webserver.access-log")))
                 .register(ProtobufJsonSupport.create())
                 .register(MetricsSupport.create())
                 .register(health)
