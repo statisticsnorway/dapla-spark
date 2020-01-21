@@ -6,11 +6,11 @@ grpcserver:
   port: 1407
 
 catalog-service:
-  host: dapla-catalog-service
+  host: localhost
   port: 1408
 
 auth-service:
-  host: dapla-auth-dataset-service
+  host: localhost
   port: 7070
 
 health:
