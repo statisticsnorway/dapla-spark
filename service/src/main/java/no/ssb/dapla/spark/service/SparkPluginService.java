@@ -33,6 +33,7 @@ import no.ssb.dapla.spark.protobuf.DataSetRequest;
 import no.ssb.dapla.spark.protobuf.LoadDataSetResponse;
 import no.ssb.dapla.spark.protobuf.SaveDataSetResponse;
 import no.ssb.dapla.spark.protobuf.SparkPluginServiceGrpc;
+import no.ssb.dapla.spark.service.utils.NamespaceUtils;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -155,7 +156,7 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
 
             AccessCheckRequest checkRequest = AccessCheckRequest.newBuilder()
                     .setUserId(userId)
-                    .setNamespace(name)
+                    .setNamespace(NamespaceUtils.normalize(name))
                     .setPrivilege(operation.name())
                     .setValuation(createOrUpdate ? intendedValuation.name() : dataset.getValuation().name())
                     .setState(createOrUpdate ? intendedState.name() : dataset.getState().name())
