@@ -32,8 +32,10 @@ public class ApplicationBuilder extends DefaultHelidonApplicationBuilder {
         if (catalogChannel == null) {
             catalogChannel = ManagedChannelBuilder
                     .forAddress(
-                            config.get("catalog-service").get("host").asString().orElse("localhost"),
-                            config.get("catalog-service").get("port").asInt().orElse(1408)
+                            config.get("catalog-service").get("host").asString().orElseThrow(() ->
+                                    new RuntimeException("missing configuration: catalog-service.host")),
+                            config.get("catalog-service").get("port").asInt().orElseThrow(() ->
+                                    new RuntimeException("missing configuration: catalog-service.port"))
                     )
                     .usePlaintext()
                     .build();
@@ -42,8 +44,10 @@ public class ApplicationBuilder extends DefaultHelidonApplicationBuilder {
         if (datasetAccessChannel == null) {
             datasetAccessChannel = ManagedChannelBuilder
                     .forAddress(
-                            config.get("auth-service").get("host").asString().orElse("localhost"),
-                            config.get("auth-service").get("port").asInt().orElse(7070)
+                            config.get("auth-service").get("host").asString().orElseThrow(() ->
+                                    new RuntimeException("missing configuration: auth-service.host")),
+                            config.get("auth-service").get("port").asInt().orElseThrow(() ->
+                                    new RuntimeException("missing configuration: auth-service.port"))
                     )
                     .usePlaintext()
                     .build();
