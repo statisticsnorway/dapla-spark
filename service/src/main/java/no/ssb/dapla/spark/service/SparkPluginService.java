@@ -216,8 +216,16 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
     }
 
     void createDatasetMeta(ServerRequest request, ServerResponse response, Dataset dataset) {
+        Optional<String> maybeUserId = request.queryParams().first("userId");
+        if (maybeUserId.isEmpty()) {
+            response.status(Http.Status.BAD_REQUEST_400).send("Missing required query parameter 'userId'");
+            return;
+        }
+        String userId = maybeUserId.get();
+
         ListenableFuture<SaveDatasetResponse> saveFuture = catalogService.withCallCredentials(AuthorizationBearer.from(request.headers())).save(SaveDatasetRequest.newBuilder()
                 .setDataset(dataset)
+                .setUserId(userId)
                 .build());
 
         Futures.addCallback(saveFuture, new FutureCallback<>() {
