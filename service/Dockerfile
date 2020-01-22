@@ -7,5 +7,5 @@ COPY service/target/dapla-spark-service*.jar /app/lib/
 
 CMD ["java", "-p", "/app/lib", "-m", "dapla.spark.service/no.ssb.dapla.spark.service.Application"]
 
-EXPOSE 1408
-EXPOSE 8060
+EXPOSE 10120
+EXPOSE 10128
