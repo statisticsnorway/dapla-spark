@@ -195,7 +195,7 @@ public class DatasetMetaTest {
                 .setPseudoConfig("config")
                 .addLocations("f")
                 .build();
-        ResponseHelper<String> responseHelper = testClient.put("/dataset-meta", ds).expect200Ok();
+        ResponseHelper<String> responseHelper = testClient.put("/dataset-meta?userId=user1", ds).expect200Ok();
         assertThat(responseHelper.response().headers().firstValue("Location").orElseThrow()).isEqualTo("/dataset-meta");
     }
 }
