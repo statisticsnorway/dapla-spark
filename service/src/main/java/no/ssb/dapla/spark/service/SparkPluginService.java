@@ -301,8 +301,8 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
                 if (Strings.isNullOrEmpty(s) || !s.startsWith("Bearer ")) {
                     return "";
                 }
-                return s.split(" ")[1];
-            }).orElse("");
+                return s.substring("Bearer ".length());
+            }).orElse("no-token");
             return new AuthorizationBearer(token);
         }
 
