@@ -1,19 +1,19 @@
 webserver:
-  port: 8060
+  port: 10120
   host: "0.0.0.0"
   access-log:
     format: "%h %u %t %r %s %b %{Referer}i %T"
 
 grpcserver:
-  port: 1407
+  port: 10128
 
 catalog-service:
   host: localhost
-  port: 1408
+  port: 10118
 
 auth-service:
   host: localhost
-  port: 7070
+  port: 10108
 
 health:
   readiness:
