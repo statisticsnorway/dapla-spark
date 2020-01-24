@@ -17,6 +17,8 @@ import io.opentracing.Tracer;
 import io.opentracing.contrib.grpc.OperationNameConstructor;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceFutureStub;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceFutureStub;
+import no.ssb.dapla.spark.service.dataset.SparkPluginGrpcService;
+import no.ssb.dapla.spark.service.dataset.SparkPluginHttpService;
 import no.ssb.dapla.spark.service.health.Health;
 import no.ssb.dapla.spark.service.health.ReadinessSample;
 import no.ssb.helidon.application.DefaultHelidonApplication;
@@ -68,16 +70,13 @@ public class Application extends DefaultHelidonApplication {
         // dataset access grpc service
         put(AuthServiceFutureStub.class, authService);
 
-        // services
-        SparkPluginService sparkPluginService = new SparkPluginService(catalogService, authService);
-
         // routing
         Routing routing = Routing.builder()
                 .register(AccessLogSupport.create(config.get("webserver.access-log")))
                 .register(ProtobufJsonSupport.create())
                 .register(MetricsSupport.create())
                 .register(health)
-                .register("/dataset-meta", sparkPluginService)
+                .register("/dataset-meta", new SparkPluginHttpService(catalogService, authService))
                 .build();
         put(Routing.class, routing);
 
@@ -109,7 +108,7 @@ public class Application extends DefaultHelidonApplication {
                         ),
                 GrpcRouting.builder()
                         .intercept(new LoggingInterceptor())
-                        .register(sparkPluginService)
+                        .register(new SparkPluginGrpcService())
                         .build()
         );
         put(GrpcServer.class, grpcServer);
