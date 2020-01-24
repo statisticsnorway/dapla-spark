@@ -258,7 +258,7 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
     }
 
     void createDatasetMeta(ServerRequest request, ServerResponse response, Dataset dataset) {
-        Span span = spanFromHttp(request, "getDatasetMeta");
+        Span span = spanFromHttp(request, "createDatasetMeta");
         try {
             Optional<String> maybeUserId = request.queryParams().first("userId");
             if (maybeUserId.isEmpty()) {
