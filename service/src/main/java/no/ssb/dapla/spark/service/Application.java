@@ -1,6 +1,7 @@
 package no.ssb.dapla.spark.service;
 
 import io.grpc.ManagedChannel;
+import io.grpc.MethodDescriptor;
 import io.helidon.config.Config;
 import io.helidon.grpc.server.GrpcRouting;
 import io.helidon.grpc.server.GrpcServer;
@@ -13,6 +14,7 @@ import io.helidon.webserver.ServerConfiguration;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.accesslog.AccessLogSupport;
 import io.opentracing.Tracer;
+import io.opentracing.contrib.grpc.OperationNameConstructor;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceFutureStub;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceFutureStub;
 import no.ssb.dapla.spark.service.health.Health;
@@ -94,6 +96,12 @@ public class Application extends DefaultHelidonApplication {
                         .tracingConfig(GrpcTracingConfig.builder()
                                 .withStreaming()
                                 .withVerbosity()
+                                .withOperationName(new OperationNameConstructor() {
+                                    @Override
+                                    public <ReqT, RespT> String constructOperationName(MethodDescriptor<ReqT, RespT> method) {
+                                        return "Grpc server: " + method.getFullMethodName();
+                                    }
+                                })
                                 .withTracedAttributes(ServerRequestAttribute.CALL_ATTRIBUTES,
                                         ServerRequestAttribute.HEADERS,
                                         ServerRequestAttribute.METHOD_NAME)

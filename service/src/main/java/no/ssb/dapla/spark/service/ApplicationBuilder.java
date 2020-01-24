@@ -2,9 +2,11 @@ package no.ssb.dapla.spark.service;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.MethodDescriptor;
 import io.helidon.config.Config;
 import io.helidon.tracing.TracerBuilder;
 import io.opentracing.Tracer;
+import io.opentracing.contrib.grpc.OperationNameConstructor;
 import io.opentracing.contrib.grpc.TracingClientInterceptor;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc;
@@ -63,6 +65,12 @@ public class ApplicationBuilder extends DefaultHelidonApplicationBuilder {
                 .withTracer(tracer)
                 .withStreaming()
                 .withVerbosity()
+                .withOperationName(new OperationNameConstructor() {
+                    @Override
+                    public <ReqT, RespT> String constructOperationName(MethodDescriptor<ReqT, RespT> method) {
+                        return "Grpc client " + method.getFullMethodName();
+                    }
+                })
                 .withActiveSpanSource(() -> tracer.scopeManager().activeSpan())
                 .withTracedAttributes(TracingClientInterceptor.ClientRequestAttribute.ALL_CALL_OPTIONS, TracingClientInterceptor.ClientRequestAttribute.HEADERS)
                 .build();
