@@ -35,6 +35,7 @@ import java.util.concurrent.Executor;
 import static java.util.Arrays.asList;
 import static no.ssb.dapla.spark.service.Tracing.logError;
 import static no.ssb.dapla.spark.service.Tracing.spanFromHttp;
+import static no.ssb.dapla.spark.service.Tracing.traceInputMessage;
 
 public class SparkPluginHttpService implements Service {
 
@@ -57,17 +58,22 @@ public class SparkPluginHttpService implements Service {
     void createDatasetMeta(ServerRequest request, ServerResponse response, Dataset dataset) {
         Span span = spanFromHttp(request, "createDatasetMeta");
         try {
+            traceInputMessage(span, dataset);
+
             Optional<String> maybeUserId = request.queryParams().first("userId");
             if (maybeUserId.isEmpty()) {
                 response.status(Http.Status.BAD_REQUEST_400).send("Missing required query parameter 'userId'");
                 return;
             }
             String userId = maybeUserId.get();
+            span.setTag("userId", userId);
 
-            ListenableFuture<SaveDatasetResponse> saveFuture = catalogService.withCallCredentials(AuthorizationBearer.from(request.headers())).save(SaveDatasetRequest.newBuilder()
-                    .setDataset(dataset)
-                    .setUserId(userId)
-                    .build());
+            ListenableFuture<SaveDatasetResponse> saveFuture = catalogService
+                    .withCallCredentials(AuthorizationBearer.from(request.headers()))
+                    .save(SaveDatasetRequest.newBuilder()
+                            .setDataset(dataset)
+                            .setUserId(userId)
+                            .build());
 
             Futures.addCallback(saveFuture, new FutureCallback<>() {
                 @Override
@@ -109,6 +115,7 @@ public class SparkPluginHttpService implements Service {
                 return;
             }
             String userId = maybeUserId.get();
+            span.setTag("userId", userId);
 
             Optional<String> maybeOperation = request.queryParams().first("operation");
             if (maybeOperation.isEmpty()) {
@@ -117,6 +124,7 @@ public class SparkPluginHttpService implements Service {
                 return;
             }
             Role.Privilege operation = Role.Privilege.valueOf(maybeOperation.get());
+            span.setTag("operation", operation.name());
 
             Role.Valuation intendedValuation = null;
             Role.DatasetState intendedState = null;
@@ -128,6 +136,7 @@ public class SparkPluginHttpService implements Service {
                     return;
                 }
                 intendedValuation = Role.Valuation.valueOf(maybeValuation.get());
+                span.setTag("valuation", intendedValuation.name());
                 Optional<String> maybeState = request.queryParams().first("state");
                 if (maybeState.isEmpty()) {
                     response.status(Http.Status.BAD_REQUEST_400).send("Missing required query parameter 'state'");
@@ -135,6 +144,7 @@ public class SparkPluginHttpService implements Service {
                     return;
                 }
                 intendedState = Role.DatasetState.valueOf(maybeState.get());
+                span.setTag("state", intendedState.name());
             }
 
             Optional<String> maybeName = request.queryParams().first("name");
@@ -144,17 +154,24 @@ public class SparkPluginHttpService implements Service {
                 return;
             }
             String name = maybeName.get();
+            span.setTag("name", name);
 
             AuthorizationBearer authorizationBearer = AuthorizationBearer.from(request.headers());
 
-            String proposedId = request.queryParams().first("proposedId").orElseGet(() -> UUID.randomUUID().toString());
+            String proposedId = request.queryParams().first("proposedId").orElseGet(() -> {
+                span.log("using a random generated UUID as proposedId");
+                return UUID.randomUUID().toString();
+            });
+            span.setTag("proposedId", proposedId);
 
             MapNameToIdRequest mapNameToIdRequest = MapNameToIdRequest.newBuilder()
                     .setProposedId(proposedId)
                     .addAllName(asList(name.split("/")))
                     .build();
 
-            ListenableFuture<MapNameToIdResponse> idFuture = catalogService.withCallCredentials(authorizationBearer).mapNameToId(mapNameToIdRequest);
+            ListenableFuture<MapNameToIdResponse> idFuture = catalogService
+                    .withCallCredentials(authorizationBearer)
+                    .mapNameToId(mapNameToIdRequest);
 
             Futures.addCallback(idFuture, MapNameToDataset.create(span, response, userId, name, operation, intendedValuation, intendedState, catalogService, authService, authorizationBearer), MoreExecutors.directExecutor());
         } catch (RuntimeException | Error e) {
