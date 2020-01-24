@@ -50,6 +50,7 @@ import static java.util.Optional.ofNullable;
 import static no.ssb.dapla.spark.service.Tracing.logError;
 import static no.ssb.dapla.spark.service.Tracing.spanFromGrpc;
 import static no.ssb.dapla.spark.service.Tracing.spanFromHttp;
+import static no.ssb.dapla.spark.service.Tracing.traceOutputMessage;
 
 public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServiceImplBase implements Service {
 
@@ -403,13 +404,13 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
 
     @Override
     public void saveDataSet(DataSetRequest request, StreamObserver<SaveDataSetResponse> responseObserver) {
-        Span span = spanFromGrpc("loadDataSet");
+        Span span = spanFromGrpc(request, "loadDataSet");
         try {
             System.out.println(request.getName());
             span.log("TODO: responding with bullshit data"); // TODO
-            responseObserver.onNext(SaveDataSetResponse.newBuilder()
+            responseObserver.onNext(traceOutputMessage(span, SaveDataSetResponse.newBuilder()
                     .setResult("Some result")
-                    .build());
+                    .build()));
             responseObserver.onCompleted();
             span.finish();
         } catch (RuntimeException | Error e) {
@@ -425,17 +426,17 @@ public class SparkPluginService extends SparkPluginServiceGrpc.SparkPluginServic
 
     @Override
     public void loadDataSet(DataSetRequest request, StreamObserver<LoadDataSetResponse> responseObserver) {
-        Span span = spanFromGrpc("loadDataSet");
+        Span span = spanFromGrpc(request, "loadDataSet");
         try {
             System.out.println(request.getName());
             span.log("TODO: responding with bullshit data"); // TODO
-            responseObserver.onNext(LoadDataSetResponse.newBuilder()
+            responseObserver.onNext(traceOutputMessage(span, LoadDataSetResponse.newBuilder()
                     .setDataset(DataSet.newBuilder()
                             .setName("konto")
                             .setId("some guid")
                             .setNameSpace("some nameSpace")
                             .build())
-                    .build());
+                    .build()));
             responseObserver.onCompleted();
             span.finish();
         } catch (RuntimeException | Error e) {

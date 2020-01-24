@@ -1,5 +1,7 @@
 package no.ssb.dapla.spark.service;
 
+import com.google.protobuf.Message;
+import com.google.protobuf.MessageOrBuilder;
 import io.helidon.common.context.Contexts;
 import io.helidon.webserver.ServerRequest;
 import io.opentracing.Span;
@@ -13,7 +15,12 @@ import java.util.Map;
 
 public class Tracing {
 
-    public static Span spanFromGrpc(String operationName) {
+    public static <T extends MessageOrBuilder> T traceOutputMessage(Span span, T message) {
+        span.log(Map.of("event", "debug-output", "data", message.toString()));
+        return message;
+    }
+
+    public static Span spanFromGrpc(Message message, String operationName) {
         SpanContext spanContext = Contexts.context().orElseThrow().get(SpanContext.class).get();
         Tracer tracer = GlobalTracer.get();
         Span span = tracer
@@ -21,6 +28,7 @@ public class Tracing {
                 .asChildOf(spanContext)
                 .start();
         tracer.scopeManager().activate(span);
+        span.log(Map.of("event", "debug-input", "data", message.toString()));
         return span;
     }
 
