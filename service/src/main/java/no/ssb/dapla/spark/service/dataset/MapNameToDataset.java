@@ -20,7 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static java.util.Optional.ofNullable;
-import static no.ssb.dapla.spark.service.Tracing.logError;
+import static no.ssb.helidon.application.Tracing.logError;
 
 class MapNameToDataset implements FutureCallback<MapNameToIdResponse> {
 

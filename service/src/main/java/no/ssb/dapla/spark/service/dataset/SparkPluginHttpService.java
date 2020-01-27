@@ -33,9 +33,9 @@ import java.util.UUID;
 import java.util.concurrent.Executor;
 
 import static java.util.Arrays.asList;
-import static no.ssb.dapla.spark.service.Tracing.logError;
-import static no.ssb.dapla.spark.service.Tracing.spanFromHttp;
-import static no.ssb.dapla.spark.service.Tracing.traceInputMessage;
+import static no.ssb.helidon.application.Tracing.logError;
+import static no.ssb.helidon.application.Tracing.spanFromHttp;
+import static no.ssb.helidon.application.Tracing.traceInputMessage;
 
 public class SparkPluginHttpService implements Service {
 

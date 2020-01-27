@@ -9,8 +9,8 @@ import no.ssb.dapla.spark.protobuf.SparkPluginServiceGrpc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static no.ssb.dapla.spark.service.Tracing.logError;
-import static no.ssb.dapla.spark.service.Tracing.spanFromGrpc;
+import static no.ssb.helidon.application.Tracing.logError;
+import static no.ssb.helidon.application.Tracing.spanFromGrpc;
 
 public class SparkPluginGrpcService extends SparkPluginServiceGrpc.SparkPluginServiceImplBase {
 

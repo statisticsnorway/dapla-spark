@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Set;
 
 import static java.util.Optional.ofNullable;
-import static no.ssb.dapla.spark.service.Tracing.logError;
+import static no.ssb.helidon.application.Tracing.logError;
 
 class GetDataset implements FutureCallback<GetByIdDatasetResponse> {
 
