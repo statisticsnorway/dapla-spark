@@ -21,6 +21,7 @@ import no.ssb.dapla.spark.service.dataset.SparkPluginGrpcService;
 import no.ssb.dapla.spark.service.dataset.SparkPluginHttpService;
 import no.ssb.dapla.spark.service.health.Health;
 import no.ssb.dapla.spark.service.health.ReadinessSample;
+import no.ssb.helidon.application.AuthorizationInterceptor;
 import no.ssb.helidon.application.DefaultHelidonApplication;
 import no.ssb.helidon.application.HelidonApplication;
 import no.ssb.helidon.media.protobuf.ProtobufJsonSupport;
@@ -107,6 +108,7 @@ public class Application extends DefaultHelidonApplication {
                                 .build()
                         ),
                 GrpcRouting.builder()
+                        .intercept(new AuthorizationInterceptor())
                         .register(new SparkPluginGrpcService())
                         .build()
         );
