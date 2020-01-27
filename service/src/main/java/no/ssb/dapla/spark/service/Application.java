@@ -107,7 +107,6 @@ public class Application extends DefaultHelidonApplication {
                                 .build()
                         ),
                 GrpcRouting.builder()
-                        .intercept(new LoggingInterceptor())
                         .register(new SparkPluginGrpcService())
                         .build()
         );

@@ -1,15 +1,11 @@
 package no.ssb.dapla.spark.service.dataset;
 
-import com.google.common.base.Strings;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import io.grpc.CallCredentials;
-import io.grpc.Metadata;
 import io.helidon.common.http.Http;
 import io.helidon.webserver.Handler;
-import io.helidon.webserver.RequestHeaders;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerRequest;
 import io.helidon.webserver.ServerResponse;
@@ -23,6 +19,7 @@ import no.ssb.dapla.catalog.protobuf.MapNameToIdRequest;
 import no.ssb.dapla.catalog.protobuf.MapNameToIdResponse;
 import no.ssb.dapla.catalog.protobuf.SaveDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.SaveDatasetResponse;
+import no.ssb.helidon.application.GrpcAuthorizationBearerCallCredentials;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +27,6 @@ import org.slf4j.LoggerFactory;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Executor;
 
 import static java.util.Arrays.asList;
 import static no.ssb.helidon.application.Tracing.logError;
@@ -69,7 +65,7 @@ public class SparkPluginHttpService implements Service {
             span.setTag("userId", userId);
 
             ListenableFuture<SaveDatasetResponse> saveFuture = catalogService
-                    .withCallCredentials(AuthorizationBearer.from(request.headers()))
+                    .withCallCredentials(GrpcAuthorizationBearerCallCredentials.from(request.headers()))
                     .save(SaveDatasetRequest.newBuilder()
                             .setDataset(dataset)
                             .setUserId(userId)
@@ -156,7 +152,7 @@ public class SparkPluginHttpService implements Service {
             String name = maybeName.get();
             span.setTag("name", name);
 
-            AuthorizationBearer authorizationBearer = AuthorizationBearer.from(request.headers());
+            GrpcAuthorizationBearerCallCredentials authorizationBearer = GrpcAuthorizationBearerCallCredentials.from(request.headers());
 
             String proposedId = request.queryParams().first("proposedId").orElseGet(() -> {
                 span.log("using a random generated UUID as proposedId");
@@ -182,36 +178,6 @@ public class SparkPluginHttpService implements Service {
             } finally {
                 span.finish();
             }
-        }
-    }
-
-    static class AuthorizationBearer extends CallCredentials {
-
-        private String token;
-
-        AuthorizationBearer(String token) {
-            this.token = token;
-        }
-
-        static AuthorizationBearer from(RequestHeaders headers) {
-            String token = headers.first("Authorization").map(s -> {
-                if (Strings.isNullOrEmpty(s) || !s.startsWith("Bearer ")) {
-                    return "";
-                }
-                return s.substring("Bearer ".length());
-            }).orElse("no-token");
-            return new AuthorizationBearer(token);
-        }
-
-        @Override
-        public void applyRequestMetadata(RequestInfo requestInfo, Executor appExecutor, MetadataApplier applier) {
-            Metadata metadata = new Metadata();
-            metadata.put(Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER), String.format("Bearer %s", token));
-            appExecutor.execute(() -> applier.apply(metadata));
-        }
-
-        @Override
-        public void thisUsesUnstableApi() {
         }
     }
 }
