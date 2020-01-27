@@ -43,6 +43,7 @@ module dapla.spark.service {
     requires javax.inject; // required by io.helidon.grpc.server
 
     requires org.checkerframework.checker.qual;
+    requires io.helidon.tracing;
 
     provides no.ssb.helidon.application.HelidonApplicationBuilder with no.ssb.dapla.spark.service.ApplicationBuilder;
 }

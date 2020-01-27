@@ -1,19 +1,27 @@
 package no.ssb.dapla.spark.service;
 
 import io.grpc.ManagedChannel;
+import io.grpc.MethodDescriptor;
 import io.helidon.config.Config;
 import io.helidon.grpc.server.GrpcRouting;
 import io.helidon.grpc.server.GrpcServer;
 import io.helidon.grpc.server.GrpcServerConfiguration;
+import io.helidon.grpc.server.GrpcTracingConfig;
+import io.helidon.grpc.server.ServerRequestAttribute;
 import io.helidon.metrics.MetricsSupport;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerConfiguration;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.accesslog.AccessLogSupport;
+import io.opentracing.Tracer;
+import io.opentracing.contrib.grpc.OperationNameConstructor;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc.AuthServiceFutureStub;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc.CatalogServiceFutureStub;
+import no.ssb.dapla.spark.service.dataset.SparkPluginGrpcService;
+import no.ssb.dapla.spark.service.dataset.SparkPluginHttpService;
 import no.ssb.dapla.spark.service.health.Health;
 import no.ssb.dapla.spark.service.health.ReadinessSample;
+import no.ssb.helidon.application.AuthorizationInterceptor;
 import no.ssb.helidon.application.DefaultHelidonApplication;
 import no.ssb.helidon.application.HelidonApplication;
 import no.ssb.helidon.media.protobuf.ProtobufJsonSupport;
@@ -49,7 +57,7 @@ public class Application extends DefaultHelidonApplication {
                 });
     }
 
-    Application(Config config, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
+    Application(Config config, Tracer tracer, CatalogServiceFutureStub catalogService, AuthServiceFutureStub authService) {
         put(Config.class, config);
 
         AtomicReference<ReadinessSample> lastReadySample = new AtomicReference<>(new ReadinessSample(false, System.currentTimeMillis()));
@@ -63,30 +71,45 @@ public class Application extends DefaultHelidonApplication {
         // dataset access grpc service
         put(AuthServiceFutureStub.class, authService);
 
-        // services
-        SparkPluginService sparkPluginService = new SparkPluginService(catalogService, authService);
-
         // routing
         Routing routing = Routing.builder()
                 .register(AccessLogSupport.create(config.get("webserver.access-log")))
                 .register(ProtobufJsonSupport.create())
                 .register(MetricsSupport.create())
                 .register(health)
-                .register("/dataset-meta", sparkPluginService)
+                .register("/dataset-meta", new SparkPluginHttpService(catalogService, authService))
                 .build();
         put(Routing.class, routing);
 
         // web-server
-        ServerConfiguration configuration = ServerConfiguration.builder(config.get("webserver")).build();
-        WebServer webServer = WebServer.create(configuration, routing);
+        WebServer webServer = WebServer.create(
+                ServerConfiguration.builder(config.get("webserver"))
+                        .tracer(tracer)
+                        .build(),
+                routing);
         put(WebServer.class, webServer);
 
         // grpc-server
         GrpcServer grpcServer = GrpcServer.create(
-                GrpcServerConfiguration.create(config.get("grpcserver")),
+                GrpcServerConfiguration.builder(config.get("grpcserver"))
+                        .tracer(tracer)
+                        .tracingConfig(GrpcTracingConfig.builder()
+                                .withStreaming()
+                                .withVerbosity()
+                                .withOperationName(new OperationNameConstructor() {
+                                    @Override
+                                    public <ReqT, RespT> String constructOperationName(MethodDescriptor<ReqT, RespT> method) {
+                                        return "Grpc server received " + method.getFullMethodName();
+                                    }
+                                })
+                                .withTracedAttributes(ServerRequestAttribute.CALL_ATTRIBUTES,
+                                        ServerRequestAttribute.HEADERS,
+                                        ServerRequestAttribute.METHOD_NAME)
+                                .build()
+                        ),
                 GrpcRouting.builder()
-                        .intercept(new LoggingInterceptor())
-                        .register(sparkPluginService)
+                        .intercept(new AuthorizationInterceptor())
+                        .register(new SparkPluginGrpcService())
                         .build()
         );
         put(GrpcServer.class, grpcServer);

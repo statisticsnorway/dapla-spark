@@ -18,3 +18,18 @@ auth-service:
 health:
   readiness:
     idle-timeout: 2000
+
+tracing:
+  enabled: true
+  service: spark-service
+  protocol: http
+  host: localhost
+  port: 14268
+  path: /api/traces
+  paths:
+    - path: "/favicon.ico"
+      enabled: false
+    - path: "/metrics"
+      enabled: false
+    - path: "/health"
+      enabled: false

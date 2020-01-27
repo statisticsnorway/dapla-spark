@@ -2,7 +2,12 @@ package no.ssb.dapla.spark.service;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.MethodDescriptor;
 import io.helidon.config.Config;
+import io.helidon.tracing.TracerBuilder;
+import io.opentracing.Tracer;
+import io.opentracing.contrib.grpc.OperationNameConstructor;
+import io.opentracing.contrib.grpc.TracingClientInterceptor;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc;
 import no.ssb.helidon.application.DefaultHelidonApplicationBuilder;
@@ -53,9 +58,26 @@ public class ApplicationBuilder extends DefaultHelidonApplicationBuilder {
                     .build();
         }
 
-        CatalogServiceGrpc.CatalogServiceFutureStub catalogService = CatalogServiceGrpc.newFutureStub(catalogChannel);
-        AuthServiceGrpc.AuthServiceFutureStub authService = AuthServiceGrpc.newFutureStub(datasetAccessChannel);
+        TracerBuilder<?> tracerBuilder = TracerBuilder.create(config.get("tracing")).registerGlobal(true);
+        Tracer tracer = tracerBuilder.build();
 
-        return new Application(config, catalogService, authService);
+        TracingClientInterceptor tracingInterceptor = TracingClientInterceptor.newBuilder()
+                .withTracer(tracer)
+                .withStreaming()
+                .withVerbosity()
+                .withOperationName(new OperationNameConstructor() {
+                    @Override
+                    public <ReqT, RespT> String constructOperationName(MethodDescriptor<ReqT, RespT> method) {
+                        return "Grpc client to " + method.getFullMethodName();
+                    }
+                })
+                .withActiveSpanSource(() -> tracer.scopeManager().activeSpan())
+                .withTracedAttributes(TracingClientInterceptor.ClientRequestAttribute.ALL_CALL_OPTIONS, TracingClientInterceptor.ClientRequestAttribute.HEADERS)
+                .build();
+
+        CatalogServiceGrpc.CatalogServiceFutureStub catalogService = CatalogServiceGrpc.newFutureStub(tracingInterceptor.intercept(catalogChannel));
+        AuthServiceGrpc.AuthServiceFutureStub authService = AuthServiceGrpc.newFutureStub(tracingInterceptor.intercept(datasetAccessChannel));
+
+        return new Application(config, tracer, catalogService, authService);
     }
 }
