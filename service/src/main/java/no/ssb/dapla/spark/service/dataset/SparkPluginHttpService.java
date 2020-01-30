@@ -94,7 +94,8 @@ public class SparkPluginHttpService implements Service {
             try {
                 logError(span, e, "top-level error");
                 LOG.error("top-level error", e);
-                throw e;
+                String message = "traceId: " + span.context().toTraceId() + "\n" + e.getMessage();
+                response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(message);
             } finally {
                 span.finish();
             }
@@ -174,7 +175,8 @@ public class SparkPluginHttpService implements Service {
             try {
                 logError(span, e, "top-level error");
                 LOG.error("top-level error", e);
-                throw e;
+                String message = "traceId: " + span.context().toTraceId() + "\n" + e.getMessage();
+                response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(message);
             } finally {
                 span.finish();
             }
