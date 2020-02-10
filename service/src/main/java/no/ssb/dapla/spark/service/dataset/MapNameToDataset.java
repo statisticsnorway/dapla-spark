@@ -8,13 +8,13 @@ import io.grpc.CallCredentials;
 import io.helidon.common.http.Http;
 import io.helidon.webserver.ServerResponse;
 import io.opentracing.Span;
-import io.opentracing.util.GlobalTracer;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc;
 import no.ssb.dapla.auth.dataset.protobuf.Role;
 import no.ssb.dapla.catalog.protobuf.CatalogServiceGrpc;
 import no.ssb.dapla.catalog.protobuf.GetByIdDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.GetByIdDatasetResponse;
 import no.ssb.dapla.catalog.protobuf.MapNameToIdResponse;
+import no.ssb.helidon.application.Tracing;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,7 +56,7 @@ class MapNameToDataset implements FutureCallback<MapNameToIdResponse> {
 
     @Override
     public void onSuccess(@Nullable MapNameToIdResponse result) {
-        GlobalTracer.get().scopeManager().activate(span);
+        Tracing.tracer().scopeManager().activate(span);
 
         if (ofNullable(result).map(MapNameToIdResponse::getId).orElse("").isBlank()) {
             response.status(Http.Status.NOT_FOUND_404).send();
@@ -74,7 +74,7 @@ class MapNameToDataset implements FutureCallback<MapNameToIdResponse> {
 
     @Override
     public void onFailure(Throwable t) {
-        GlobalTracer.get().scopeManager().activate(span);
+        Tracing.tracer().scopeManager().activate(span);
 
         try {
             logError(span, t, "error in catalogService.mapNameToId()");

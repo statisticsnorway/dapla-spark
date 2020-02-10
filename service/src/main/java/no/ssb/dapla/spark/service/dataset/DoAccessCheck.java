@@ -4,9 +4,9 @@ import com.google.common.util.concurrent.FutureCallback;
 import io.helidon.common.http.Http;
 import io.helidon.webserver.ServerResponse;
 import io.opentracing.Span;
-import io.opentracing.util.GlobalTracer;
 import no.ssb.dapla.auth.dataset.protobuf.AccessCheckResponse;
 import no.ssb.dapla.catalog.protobuf.Dataset;
+import no.ssb.helidon.application.Tracing;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +33,7 @@ class DoAccessCheck implements FutureCallback<AccessCheckResponse> {
 
     @Override
     public void onSuccess(@Nullable AccessCheckResponse result) {
-        GlobalTracer.get().scopeManager().activate(span);
+        Tracing.tracer().scopeManager().activate(span);
 
         if (result != null && result.getAllowed()) {
             response.status(Http.Status.OK_200).send(dataset);
@@ -46,7 +46,7 @@ class DoAccessCheck implements FutureCallback<AccessCheckResponse> {
 
     @Override
     public void onFailure(Throwable t) {
-        GlobalTracer.get().scopeManager().activate(span);
+        Tracing.tracer().scopeManager().activate(span);
 
         try {
             logError(span, t, "error in authService.hasAccess()");

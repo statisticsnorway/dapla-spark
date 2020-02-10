@@ -8,7 +8,6 @@ import io.grpc.CallCredentials;
 import io.helidon.common.http.Http;
 import io.helidon.webserver.ServerResponse;
 import io.opentracing.Span;
-import io.opentracing.util.GlobalTracer;
 import no.ssb.dapla.auth.dataset.protobuf.AccessCheckRequest;
 import no.ssb.dapla.auth.dataset.protobuf.AccessCheckResponse;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc;
@@ -17,6 +16,7 @@ import no.ssb.dapla.catalog.protobuf.Dataset;
 import no.ssb.dapla.catalog.protobuf.DatasetId;
 import no.ssb.dapla.catalog.protobuf.GetByIdDatasetResponse;
 import no.ssb.dapla.spark.service.utils.NamespaceUtils;
+import no.ssb.helidon.application.Tracing;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +60,7 @@ class GetDataset implements FutureCallback<GetByIdDatasetResponse> {
 
     @Override
     public void onSuccess(@Nullable GetByIdDatasetResponse result) {
-        GlobalTracer.get().scopeManager().activate(span);
+        Tracing.tracer().scopeManager().activate(span);
 
         Dataset dataset;
         if (ofNullable(result)
@@ -98,7 +98,7 @@ class GetDataset implements FutureCallback<GetByIdDatasetResponse> {
 
     @Override
     public void onFailure(Throwable t) {
-        GlobalTracer.get().scopeManager().activate(span);
+        Tracing.tracer().scopeManager().activate(span);
 
         try {
             logError(span, t, "error in catalogService.getById()");
