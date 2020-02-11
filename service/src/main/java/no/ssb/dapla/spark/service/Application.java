@@ -71,25 +71,8 @@ public class Application extends DefaultHelidonApplication {
         // dataset access grpc service
         put(AuthServiceFutureStub.class, authService);
 
-        // routing
-        Routing routing = Routing.builder()
-                .register(AccessLogSupport.create(config.get("webserver.access-log")))
-                .register(ProtobufJsonSupport.create())
-                .register(MetricsSupport.create())
-                .register(health)
-                .register("/dataset-meta", new SparkPluginHttpService(catalogService, authService))
-                .build();
-        put(Routing.class, routing);
-
-        // web-server
-        WebServer webServer = WebServer.create(
-                ServerConfiguration.builder(config.get("webserver"))
-                        .tracer(tracer)
-                        .build(),
-                routing);
-        put(WebServer.class, webServer);
-
         // grpc-server
+        SparkPluginGrpcService sparkPluginGrpcService = new SparkPluginGrpcService();
         GrpcServer grpcServer = GrpcServer.create(
                 GrpcServerConfiguration.builder(config.get("grpcserver"))
                         .tracer(tracer)
@@ -109,10 +92,28 @@ public class Application extends DefaultHelidonApplication {
                         ),
                 GrpcRouting.builder()
                         .intercept(new AuthorizationInterceptor())
-                        .register(new SparkPluginGrpcService())
+                        .register(sparkPluginGrpcService)
                         .build()
         );
         put(GrpcServer.class, grpcServer);
+
+        // routing
+        Routing routing = Routing.builder()
+                .register(AccessLogSupport.create(config.get("webserver.access-log")))
+                .register(ProtobufJsonSupport.create())
+                .register(MetricsSupport.create())
+                .register(health)
+                .register("/dataset-meta", new SparkPluginHttpService(catalogService, authService))
+                .build();
+        put(Routing.class, routing);
+
+        // web-server
+        WebServer webServer = WebServer.create(
+                ServerConfiguration.builder(config.get("webserver"))
+                        .tracer(tracer)
+                        .build(),
+                routing);
+        put(WebServer.class, webServer);
     }
 
     @Override
