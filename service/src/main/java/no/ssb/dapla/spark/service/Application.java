@@ -1,6 +1,7 @@
 package no.ssb.dapla.spark.service;
 
 import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.MethodDescriptor;
 import io.helidon.config.Config;
 import io.helidon.grpc.server.GrpcRouting;
@@ -24,10 +25,12 @@ import no.ssb.dapla.spark.service.health.ReadinessSample;
 import no.ssb.helidon.application.AuthorizationInterceptor;
 import no.ssb.helidon.application.DefaultHelidonApplication;
 import no.ssb.helidon.application.HelidonApplication;
+import no.ssb.helidon.application.HelidonGrpcWebTranscoding;
 import no.ssb.helidon.media.protobuf.ProtobufJsonSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
@@ -104,6 +107,16 @@ public class Application extends DefaultHelidonApplication {
                 .register(MetricsSupport.create())
                 .register(health)
                 .register("/dataset-meta", new SparkPluginHttpService(catalogService, authService))
+                .register("/rpc", new HelidonGrpcWebTranscoding(
+                        () -> ManagedChannelBuilder
+                                .forAddress("localhost", Optional.of(grpcServer)
+                                        .filter(GrpcServer::isRunning)
+                                        .map(GrpcServer::port)
+                                        .orElseThrow())
+                                .usePlaintext()
+                                .build(),
+                        sparkPluginGrpcService
+                ))
                 .build();
         put(Routing.class, routing);
 
