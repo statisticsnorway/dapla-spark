@@ -11,6 +11,7 @@ import no.ssb.dapla.catalog.protobuf.GetByIdDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.GetByIdDatasetResponse;
 import no.ssb.dapla.catalog.protobuf.MapNameToIdRequest;
 import no.ssb.dapla.catalog.protobuf.MapNameToIdResponse;
+import no.ssb.dapla.catalog.protobuf.PseudoConfigItem;
 import no.ssb.dapla.catalog.protobuf.SaveDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.SaveDatasetResponse;
 import no.ssb.testing.helidon.GrpcMockRegistry;
@@ -49,7 +50,7 @@ public class DatasetMetaTest {
                 Dataset.newBuilder()
                         .setState(Dataset.DatasetState.OUTPUT)
                         .setValuation(Dataset.Valuation.OPEN)
-                        .setPseudoConfig("pC")
+                        .addPseudoConfig(PseudoConfigItem.newBuilder().setCol("col1").setPseudoFunc("someFunc1(param1)"))
                         .addLocations("f1")
                         .setId(
                                 DatasetId.newBuilder()
@@ -192,7 +193,7 @@ public class DatasetMetaTest {
                 .setId(DatasetId.newBuilder().setId("an_id").build())
                 .setValuation(Dataset.Valuation.SHIELDED)
                 .setState(Dataset.DatasetState.PRODUCT)
-                .setPseudoConfig("config")
+                .addPseudoConfig(PseudoConfigItem.newBuilder().setCol("col1").setPseudoFunc("someFunc1(param1)"))
                 .addLocations("f")
                 .build();
         ResponseHelper<String> responseHelper = testClient.put("/dataset-meta?userId=user1", ds).expect200Ok();
