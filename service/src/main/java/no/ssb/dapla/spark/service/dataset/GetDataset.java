@@ -6,6 +6,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import io.grpc.CallCredentials;
 import io.helidon.common.http.Http;
+import io.helidon.webserver.ServerRequest;
 import io.helidon.webserver.ServerResponse;
 import io.opentracing.Span;
 import no.ssb.dapla.auth.dataset.protobuf.AccessCheckRequest;
@@ -31,6 +32,7 @@ class GetDataset implements FutureCallback<GetByIdDatasetResponse> {
     private static final Logger LOG = LoggerFactory.getLogger(GetDataset.class);
 
     private Span span;
+    private ServerRequest request;
     private String mappedId;
     private ServerResponse response;
     private String userId;
@@ -41,8 +43,9 @@ class GetDataset implements FutureCallback<GetByIdDatasetResponse> {
     private AuthServiceGrpc.AuthServiceFutureStub authService;
     private CallCredentials authorizationBearer;
 
-    GetDataset(Span span, ServerResponse response, String mappedId, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, AuthServiceGrpc.AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
+    GetDataset(Span span, ServerRequest request, ServerResponse response, String mappedId, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, AuthServiceGrpc.AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
         this.span = span;
+        this.request = request;
         this.mappedId = mappedId;
         this.response = response;
         this.userId = userId;
@@ -54,13 +57,13 @@ class GetDataset implements FutureCallback<GetByIdDatasetResponse> {
         this.authorizationBearer = authorizationBearer;
     }
 
-    static GetDataset create(Span span, ServerResponse response, String mappedId, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, AuthServiceGrpc.AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
-        return new GetDataset(span, response, mappedId, userId, name, operation, intendedValuation, intendedState, authService, authorizationBearer);
+    static GetDataset create(Span span, ServerRequest request, ServerResponse response, String mappedId, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, AuthServiceGrpc.AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
+        return new GetDataset(span, request, response, mappedId, userId, name, operation, intendedValuation, intendedState, authService, authorizationBearer);
     }
 
     @Override
     public void onSuccess(@Nullable GetByIdDatasetResponse result) {
-        Tracing.tracer().scopeManager().activate(span);
+        Tracing.restoreTracingContext(request.tracer(), span);
 
         Dataset dataset;
         if (ofNullable(result)
@@ -93,14 +96,13 @@ class GetDataset implements FutureCallback<GetByIdDatasetResponse> {
 
         ListenableFuture<AccessCheckResponse> hasAccessListenableFuture = authService.withCallCredentials(authorizationBearer).hasAccess(checkRequest);
 
-        Futures.addCallback(hasAccessListenableFuture, DoAccessCheck.create(span, response, dataset), MoreExecutors.directExecutor());
+        Futures.addCallback(hasAccessListenableFuture, DoAccessCheck.create(span, request, response, dataset), MoreExecutors.directExecutor());
     }
 
     @Override
     public void onFailure(Throwable t) {
-        Tracing.tracer().scopeManager().activate(span);
-
         try {
+            Tracing.restoreTracingContext(request.tracer(), span);
             logError(span, t, "error in catalogService.getById()");
             LOG.error("catalogService.getById()", t);
             response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());

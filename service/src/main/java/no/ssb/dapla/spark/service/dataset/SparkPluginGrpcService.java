@@ -6,6 +6,7 @@ import no.ssb.dapla.spark.protobuf.DataSetRequest;
 import no.ssb.dapla.spark.protobuf.LoadDataSetResponse;
 import no.ssb.dapla.spark.protobuf.SaveDataSetResponse;
 import no.ssb.dapla.spark.protobuf.SparkPluginServiceGrpc;
+import no.ssb.helidon.application.TracerAndSpan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,7 +22,8 @@ public class SparkPluginGrpcService extends SparkPluginServiceGrpc.SparkPluginSe
 
     @Override
     public void saveDataSet(DataSetRequest request, StreamObserver<SaveDataSetResponse> responseObserver) {
-        Span span = spanFromGrpc(request, "loadDataSet");
+        TracerAndSpan tracerAndSpan = spanFromGrpc(request, "saveDataSet");
+        Span span = tracerAndSpan.span();
         try {
             throw new UnsupportedOperationException("TODO not yet implemented"); // TODO
         } catch (RuntimeException | Error e) {
@@ -37,7 +39,8 @@ public class SparkPluginGrpcService extends SparkPluginServiceGrpc.SparkPluginSe
 
     @Override
     public void loadDataSet(DataSetRequest request, StreamObserver<LoadDataSetResponse> responseObserver) {
-        Span span = spanFromGrpc(request, "loadDataSet");
+        TracerAndSpan tracerAndSpan = spanFromGrpc(request, "loadDataSet");
+        Span span = tracerAndSpan.span();
         try {
             throw new UnsupportedOperationException("TODO not yet implemented"); // TODO
         } catch (RuntimeException | Error e) {

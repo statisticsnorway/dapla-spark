@@ -20,6 +20,8 @@ import no.ssb.dapla.catalog.protobuf.MapNameToIdResponse;
 import no.ssb.dapla.catalog.protobuf.SaveDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.SaveDatasetResponse;
 import no.ssb.helidon.application.GrpcAuthorizationBearerCallCredentials;
+import no.ssb.helidon.application.TracerAndSpan;
+import no.ssb.helidon.application.Tracing;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +54,8 @@ public class SparkPluginHttpService implements Service {
     }
 
     void createDatasetMeta(ServerRequest request, ServerResponse response, Dataset dataset) {
-        Span span = spanFromHttp(request, "createDatasetMeta");
+        TracerAndSpan tracerAndSpan = spanFromHttp(request, "createDatasetMeta");
+        Span span = tracerAndSpan.span();
         try {
             traceInputMessage(span, dataset);
 
@@ -74,6 +77,7 @@ public class SparkPluginHttpService implements Service {
             Futures.addCallback(saveFuture, new FutureCallback<>() {
                 @Override
                 public void onSuccess(@Nullable SaveDatasetResponse result) {
+                    Tracing.restoreTracingContext(request.tracer(), span);
                     response.headers().add("Location", "/dataset-meta");
                     response.status(Http.Status.OK_200).send();
                     span.finish();
@@ -82,6 +86,7 @@ public class SparkPluginHttpService implements Service {
                 @Override
                 public void onFailure(Throwable t) {
                     try {
+                        Tracing.restoreTracingContext(request.tracer(), span);
                         logError(span, t, "error in catalogService.save()");
                         LOG.error("catalogService.save()", t);
                         response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
@@ -103,7 +108,8 @@ public class SparkPluginHttpService implements Service {
     }
 
     void getDatasetMeta(ServerRequest request, ServerResponse response) {
-        Span span = spanFromHttp(request, "getDatasetMeta");
+        TracerAndSpan tracerAndSpan = spanFromHttp(request, "getDatasetMeta");
+        Span span = tracerAndSpan.span();
         try {
             Optional<String> maybeUserId = request.queryParams().first("userId");
             if (maybeUserId.isEmpty()) {
@@ -170,7 +176,7 @@ public class SparkPluginHttpService implements Service {
                     .withCallCredentials(authorizationBearer)
                     .mapNameToId(mapNameToIdRequest);
 
-            Futures.addCallback(idFuture, MapNameToDataset.create(span, response, userId, name, operation, intendedValuation, intendedState, catalogService, authService, authorizationBearer), MoreExecutors.directExecutor());
+            Futures.addCallback(idFuture, MapNameToDataset.create(span, request, response, userId, name, operation, intendedValuation, intendedState, catalogService, authService, authorizationBearer), MoreExecutors.directExecutor());
         } catch (RuntimeException | Error e) {
             try {
                 logError(span, e, "top-level error");

@@ -6,6 +6,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import io.grpc.CallCredentials;
 import io.helidon.common.http.Http;
+import io.helidon.webserver.ServerRequest;
 import io.helidon.webserver.ServerResponse;
 import io.opentracing.Span;
 import no.ssb.dapla.auth.dataset.protobuf.AuthServiceGrpc;
@@ -27,6 +28,7 @@ class MapNameToDataset implements FutureCallback<MapNameToIdResponse> {
     private static final Logger LOG = LoggerFactory.getLogger(MapNameToDataset.class);
 
     private Span span;
+    private ServerRequest request;
     private ServerResponse response;
     private String userId;
     private String name;
@@ -37,8 +39,9 @@ class MapNameToDataset implements FutureCallback<MapNameToIdResponse> {
     private AuthServiceGrpc.AuthServiceFutureStub authService;
     private CallCredentials authorizationBearer;
 
-    MapNameToDataset(Span span, ServerResponse response, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, CatalogServiceGrpc.CatalogServiceFutureStub catalogService, AuthServiceGrpc.AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
+    MapNameToDataset(Span span, ServerRequest request, ServerResponse response, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, CatalogServiceGrpc.CatalogServiceFutureStub catalogService, AuthServiceGrpc.AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
         this.span = span;
+        this.request = request;
         this.response = response;
         this.userId = userId;
         this.name = name;
@@ -50,13 +53,13 @@ class MapNameToDataset implements FutureCallback<MapNameToIdResponse> {
         this.authorizationBearer = authorizationBearer;
     }
 
-    static MapNameToDataset create(Span span, ServerResponse response, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, CatalogServiceGrpc.CatalogServiceFutureStub catalogService, AuthServiceGrpc.AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
-        return new MapNameToDataset(span, response, userId, name, operation, intendedValuation, intendedState, catalogService, authService, authorizationBearer);
+    static MapNameToDataset create(Span span, ServerRequest request, ServerResponse response, String userId, String name, Role.Privilege operation, Role.Valuation intendedValuation, Role.DatasetState intendedState, CatalogServiceGrpc.CatalogServiceFutureStub catalogService, AuthServiceGrpc.AuthServiceFutureStub authService, CallCredentials authorizationBearer) {
+        return new MapNameToDataset(span, request, response, userId, name, operation, intendedValuation, intendedState, catalogService, authService, authorizationBearer);
     }
 
     @Override
     public void onSuccess(@Nullable MapNameToIdResponse result) {
-        Tracing.tracer().scopeManager().activate(span);
+        Tracing.restoreTracingContext(request.tracer(), span);
 
         if (ofNullable(result).map(MapNameToIdResponse::getId).orElse("").isBlank()) {
             response.status(Http.Status.NOT_FOUND_404).send();
@@ -69,14 +72,13 @@ class MapNameToDataset implements FutureCallback<MapNameToIdResponse> {
                 .build()
         );
 
-        Futures.addCallback(datasetFuture, GetDataset.create(span, response, result.getId(), userId, name, operation, intendedValuation, intendedState, authService, authorizationBearer), MoreExecutors.directExecutor());
+        Futures.addCallback(datasetFuture, GetDataset.create(span, request, response, result.getId(), userId, name, operation, intendedValuation, intendedState, authService, authorizationBearer), MoreExecutors.directExecutor());
     }
 
     @Override
     public void onFailure(Throwable t) {
-        Tracing.tracer().scopeManager().activate(span);
-
         try {
+            Tracing.restoreTracingContext(request.tracer(), span);
             logError(span, t, "error in catalogService.mapNameToId()");
             LOG.error("catalogService.mapNameToId()", t);
             response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());

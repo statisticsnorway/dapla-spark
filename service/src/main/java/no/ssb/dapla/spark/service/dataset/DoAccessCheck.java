@@ -2,6 +2,7 @@ package no.ssb.dapla.spark.service.dataset;
 
 import com.google.common.util.concurrent.FutureCallback;
 import io.helidon.common.http.Http;
+import io.helidon.webserver.ServerRequest;
 import io.helidon.webserver.ServerResponse;
 import io.opentracing.Span;
 import no.ssb.dapla.auth.dataset.protobuf.AccessCheckResponse;
@@ -18,22 +19,24 @@ class DoAccessCheck implements FutureCallback<AccessCheckResponse> {
     private static final Logger LOG = LoggerFactory.getLogger(DoAccessCheck.class);
 
     private Span span;
+    private ServerRequest request;
     private ServerResponse response;
     private Dataset dataset;
 
-    DoAccessCheck(Span span, ServerResponse response, Dataset dataset) {
+    DoAccessCheck(Span span, ServerRequest request, ServerResponse response, Dataset dataset) {
         this.span = span;
+        this.request = request;
         this.response = response;
         this.dataset = dataset;
     }
 
-    static DoAccessCheck create(Span span, ServerResponse response, Dataset dataset) {
-        return new DoAccessCheck(span, response, dataset);
+    static DoAccessCheck create(Span span, ServerRequest request, ServerResponse response, Dataset dataset) {
+        return new DoAccessCheck(span, request, response, dataset);
     }
 
     @Override
     public void onSuccess(@Nullable AccessCheckResponse result) {
-        Tracing.tracer().scopeManager().activate(span);
+        Tracing.restoreTracingContext(request.tracer(), span);
 
         if (result != null && result.getAllowed()) {
             response.status(Http.Status.OK_200).send(dataset);
@@ -46,9 +49,8 @@ class DoAccessCheck implements FutureCallback<AccessCheckResponse> {
 
     @Override
     public void onFailure(Throwable t) {
-        Tracing.tracer().scopeManager().activate(span);
-
         try {
+            Tracing.restoreTracingContext(request.tracer(), span);
             logError(span, t, "error in authService.hasAccess()");
             LOG.error("authService.hasAccess()", t);
             response.status(Http.Status.INTERNAL_SERVER_ERROR_500).send(t.getMessage());
