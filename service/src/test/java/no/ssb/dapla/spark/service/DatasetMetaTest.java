@@ -11,9 +11,11 @@ import no.ssb.dapla.catalog.protobuf.GetByIdDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.GetByIdDatasetResponse;
 import no.ssb.dapla.catalog.protobuf.MapNameToIdRequest;
 import no.ssb.dapla.catalog.protobuf.MapNameToIdResponse;
-import no.ssb.dapla.catalog.protobuf.PseudoConfigItem;
+import no.ssb.dapla.catalog.protobuf.PseudoConfig;
 import no.ssb.dapla.catalog.protobuf.SaveDatasetRequest;
 import no.ssb.dapla.catalog.protobuf.SaveDatasetResponse;
+import no.ssb.dapla.catalog.protobuf.SecretPseudoConfigItem;
+import no.ssb.dapla.catalog.protobuf.VarPseudoConfigItem;
 import no.ssb.testing.helidon.GrpcMockRegistry;
 import no.ssb.testing.helidon.GrpcMockRegistryConfig;
 import no.ssb.testing.helidon.IntegrationTestExtension;
@@ -50,7 +52,7 @@ public class DatasetMetaTest {
                 Dataset.newBuilder()
                         .setState(Dataset.DatasetState.OUTPUT)
                         .setValuation(Dataset.Valuation.OPEN)
-                        .addPseudoConfig(PseudoConfigItem.newBuilder().setCol("col1").setPseudoFunc("someFunc1(param1)"))
+                        .setPseudoConfig(dummyPseudoConfig())
                         .addLocations("f1")
                         .setId(
                                 DatasetId.newBuilder()
@@ -119,6 +121,16 @@ public class DatasetMetaTest {
                 }
             });
         }
+    }
+
+    static PseudoConfig dummyPseudoConfig() {
+        return PseudoConfig.newBuilder()
+          .addVars(VarPseudoConfigItem.newBuilder().setVar("var1").setPseudoFunc("someFunc1(param1,keyId1)"))
+          .addVars(VarPseudoConfigItem.newBuilder().setVar("var2").setPseudoFunc("someFunc2(keyId2)"))
+          .addVars(VarPseudoConfigItem.newBuilder().setVar("var3").setPseudoFunc("someFunc3(keyId1)"))
+          .addSecrets(SecretPseudoConfigItem.newBuilder().setId ("keyId1"))
+          .addSecrets(SecretPseudoConfigItem.newBuilder().setId ("keyId2"))
+          .build();
     }
 
     // CREATE
@@ -193,7 +205,7 @@ public class DatasetMetaTest {
                 .setId(DatasetId.newBuilder().setId("an_id").build())
                 .setValuation(Dataset.Valuation.SHIELDED)
                 .setState(Dataset.DatasetState.PRODUCT)
-                .addPseudoConfig(PseudoConfigItem.newBuilder().setCol("col1").setPseudoFunc("someFunc1(param1)"))
+                .setPseudoConfig(dummyPseudoConfig())
                 .addLocations("f")
                 .build();
         ResponseHelper<String> responseHelper = testClient.put("/dataset-meta?userId=user1", ds).expect200Ok();
